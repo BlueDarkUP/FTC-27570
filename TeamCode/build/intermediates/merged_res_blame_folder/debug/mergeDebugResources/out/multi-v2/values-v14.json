@@ -1,0 +1,20 @@
+{
+    "logs": [
+        {
+            "outputFile": "org.firstinspires.ftc.teamcode.TeamCode-mergeDebugResources-17:/values-v14/values-v14.xml",
+            "map": [
+                {
+                    "source": "C:\\Users\\lllccc\\.gradle\\caches\\8.9\\transforms\\2abf24930e71deaa38e1e6d49a3c5192\\transformed\\RobotCore-10.1.1\\res\\values-v14\\values-v14.xml",
+                    "from": {
+                        "startLines": "2",
+                        "startColumns": "4",
+                        "startOffsets": "55",
+                        "endLines": "4",
+                        "endColumns": "12",
+                        "endOffsets": "152"
+                    }
+                }
+            ]
+        }
+    ]
+}

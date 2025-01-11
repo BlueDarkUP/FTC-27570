@@ -1,0 +1,134 @@
+﻿<!DOCTYPE html>
+<html>
+<!--
+  Author: lizlooney@google.com (Liz Looney)
+-->
+<head>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta charset="utf-8">
+
+  <link href="/css/bootstrap.min.css" rel="stylesheet">
+  <script type="text/javascript" src="/js/jquery-3.4.1.min.js"></script>
+  <script type="text/javascript" src="/js/bootstrap.min.js"></script>
+
+  <link rel="stylesheet/less" type="text/css" href="/css/blocks_common.less">
+  <link rel="stylesheet" type="text/css" href="css/blocks_common.css">
+
+  <script type="text/javascript" src="/js/less.min.js"></script>
+
+  <script type="text/javascript" src="server"></script>
+
+  <script type="text/javascript" src="blocks/file_manager.js"></script>
+  <script type="text/javascript" src="blocks/sound_util.js"></script>
+
+  <title>FTC - My Sounds</title>
+</head>
+
+<body onload="initialize()">
+<table class="top" width="100%">
+  <tr>
+    <td class="blank_td" colspan="2"></td>
+  </tr>
+  <tr>
+    <td class="buttons_td" colspan="2">
+      <table width="100%">
+        <tr>
+          <td>
+            <button id="uploadFilesButton" onclick="uploadFilesButtonClicked()">Upload Sounds</button>
+          </td>
+          <td align="right">
+          </td>
+        </tr>
+        <tr>
+          <td style="padding: 2px" colspan="2"></td>
+        </tr>
+        <tr>
+          <td>
+            <button id="renameFileButton" disabled="true" onclick="renameFileButtonClicked()">Rename Selected Sound</button>
+            <button id="copyFileButton" disabled="true" onclick="copyFileButtonClicked()">Copy Selected Sound</button>
+            <button id="deleteFilesButton" disabled="true" onclick="deleteFilesButtonClicked()">Delete Selected Sounds</button>
+            <button id="downloadFilesButton" disabled="true" onclick="downloadFilesButtonClicked()">Download Selected Sounds</button>
+            <a id="download_link"></a>
+          </td>
+          <td align="right">
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td class="blank_td" colspan="2"></td>
+  </tr>
+  <tr>
+    <td class="my_files_td" colspan="2">My Sounds</td>
+  </tr>
+  <tr>
+    <td class="blank_td" colspan="2"></td>
+  </tr>
+</table>
+<div id="filesTableScroll" class="scrolling_table_container">
+  <table id="filesTable" width="100%">
+    <tr class="header_tr">
+      <td><input type="checkbox" id="checkbox_all" onclick="fileCheckAllChanged()"></td>
+      <td width="30%"><div class="header_td" onclick="toggleSortByName()">Sound Name<span id="sortByNameIndicator">&nbsp;</span></div></td>
+      <td width="60%"><div class="header_td" onclick="toggleSortByDateModified()">Date Modified<span id="sortByDateModifiedIndicator">&nbsp;</span></div></td>
+    </tr>
+  </table>
+</div>
+
+<div id="newNameDialog" class="modal_dialog"><div class="modal_dialog_container"><div class="modal_dialog_content">
+  <center>
+  <h3 style="margin-top: 0px" id="newNameDialogTitle"></h3><br>
+  Sound Name:
+  <input type="text" id="newName"><br>
+  <div class="error_message" id="newNameError" style="width: 60ch"></div><br>
+  <table width="100%">
+    <tr>
+      <td align="center"><button onclick="cancelNewNameDialog()">Cancel</button></td>
+      <td align="center"><button onclick="okNewNameDialog()">OK</button></td>
+    </tr>
+  </table>
+  </center>
+</div></div></div>
+
+<div id="uploadFilesDialog" class="modal_dialog"><div class="modal_dialog_container"><div class="modal_dialog_content">
+  <center>
+  <h3 style="margin-top: 0px">Upload Sounds</h3><br>
+  <input type="file" id="uploadFilesFileInput" accept="audio/*" multiple><br>
+  <div class="error_message" id="uploadFilesError" style="width: 60ch"></div><br>
+  <table width="100%">
+    <tr>
+      <td align="center"><button onclick="cancelUploadFilesDialog()">Cancel</button></td>
+      <td align="center"><button id="uploadFilesOk" onclick="okUploadFilesDialog()">OK</button></td>
+    </tr>
+  </table>
+  </center>
+</div></div></div>
+
+<div id="deleteFilesDialog" class="modal_dialog"><div class="modal_dialog_container"><div class="modal_dialog_content">
+  <center>
+  <h3 style="margin-top: 0px">Delete Selected Sounds</h3><br>
+  Are you sure you want to delete these sounds?
+  <table id="deleteFilesTable">
+  </table>
+  <table width="100%">
+    <tr>
+      <td align="center"><button onclick="noDeleteFilesDialog()">No</button></td>
+      <td align="center"><button onclick="yesDeleteFilesDialog()">Yes</button></td>
+    </tr>
+  </table>
+  </center>
+</div></div></div>
+
+<script type="text/javascript">
+  var FILE_MANAGER_NAME = 'SOUNDS';
+  var NAME_CLASH = 'There is already a sound with this name.';
+  // playSound is declared in sound_utils.js
+  var PLAY_FILE_FUNCTION = 'playSound';
+
+  window.addEventListener('resize', onresize, false);
+  onresize();
+</script>
+</body>
+</html>

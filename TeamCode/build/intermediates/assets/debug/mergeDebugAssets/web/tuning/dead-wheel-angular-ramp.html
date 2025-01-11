@@ -1,0 +1,49 @@
+<!doctype html>
+<html>
+
+<head>
+  <title>RR Dead Wheel Angular Ramp Regression</title>
+
+  
+
+  
+  <script type="module" crossorigin src="/assets/deadWheelAngularRamp-7b11927b.js"></script>
+  <link rel="modulepreload" crossorigin href="/assets/common-5ad312f0.js">
+  <link rel="stylesheet" href="/assets/common-165165ad.css">
+</head>
+
+<body>
+  <div class="content">
+    <header>
+      <h1>RR Dead Wheel Angular Ramp Regression</h1>
+      <p>Version: 0.1.14</p>
+
+      <div id="error"></div>
+
+      <div id="download"></div>
+      <div id="warning"></div>
+
+      <fieldset>
+        <legend>Feedforward Parameters</legend>
+        <div>
+          kV: <input id="kv" type="text" />
+        </div>
+        <div>
+          kS: <input id="ks" type="text" />
+        </div>
+        <input id="update" type="button" value="update" />
+      </fieldset>
+
+      <p>
+        <button id="latest">Latest</button>
+        <input id="browse" type="file" accept="application/json">
+      </p>
+    </header>
+
+    <div id="trackWidthChart"></div>
+
+    <div id="deadWheelCharts"></div>
+  </div>
+</body>
+
+</html>
