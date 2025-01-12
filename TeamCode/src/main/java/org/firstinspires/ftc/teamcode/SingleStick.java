@@ -85,7 +85,7 @@ public class SingleStick extends LinearOpMode {
     private long lastCrossButtonPressTime = 0;
     private long lastRightStickPressTime = 0;
 
-    private ElapsedTime debounceTimer = new ElapsedTime();
+    private final ElapsedTime debounceTimer = new ElapsedTime();
     //endregion
 
     //region Odometry and Mecanum Drive
