@@ -1,4 +1,3 @@
-@ -1,85 +1,4 @@
 # 🦾 Team 27570 - Bears
 
 Welcome to the public FTC code repository for the **"INTO THE DEEP"** (2024-2025) competition season!  
