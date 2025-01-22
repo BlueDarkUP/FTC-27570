@@ -19,7 +19,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.TwoDeadWheelLocalizer;
 
-@Autonomous(name = "Push_Two_Add_Two_Auto_ChamberDrive_BY27570_OPTr",group = "old")
+@Autonomous(name = "Push_Two_Add_Two_Auto_ChamberDrive_BY27570")
 public class Chamber_Drive extends LinearOpMode {
 
    // public double CM_TO_INCH(double cm){

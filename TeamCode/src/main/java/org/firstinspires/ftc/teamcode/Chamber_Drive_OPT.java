@@ -19,7 +19,7 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.teamcode.MecanumDrive;
 import org.firstinspires.ftc.teamcode.TwoDeadWheelLocalizer;
 
-@Autonomous(name = "Push_Two_Add_Two_Auto_ChamberDrive_BY27570_OPT",group = "Competition")
+@Autonomous(name = "Push_Two_Add_Two_Auto_ChamberDrive_BY27570_OPT")
 public class Chamber_Drive_OPT extends LinearOpMode {
 
     // public double CM_TO_INCH(double cm){
@@ -46,19 +46,6 @@ public class Chamber_Drive_OPT extends LinearOpMode {
         Right_Hanging_Motor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER);
         Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
-        backgrap = hardwareMap.get(Servo.class, "backgrap");
-        frame = hardwareMap.get(Servo.class, "frame");
-        forward_slide = hardwareMap.get(Servo.class, "forward_slide");
-        arm_forward = hardwareMap.get(Servo.class, "arm_forward");
-        claw_shu = hardwareMap.get(Servo.class, "claw_shu");
-        forward_claw = hardwareMap.get(Servo.class, "forward_claw");
-        claw_heng = hardwareMap.get(Servo.class, "claw_heng");
-        claw_heng.setPosition(0.55);
-        frame.setPosition(0);
-        backgrap.setPosition(0);
-        forward_slide.setPosition(0.88);
-        arm_forward.setPosition(0.8);
-        claw_shu.setPosition(0.5);
         telemetry.addData("LLM",Left_Hanging_Motor);
         telemetry.addData("RLM",Right_Hanging_Motor);
         telemetry.update();
@@ -72,7 +59,6 @@ public class Chamber_Drive_OPT extends LinearOpMode {
                         .splineToConstantHeading(new Vector2d(-33.75, -9.5), 0)
                         //First Chamber set
                         .stopAndAdd(new PatientMotorAction(Left_Hanging_Motor,Right_Hanging_Motor,930))
-                        .stopAndAdd(new PatientServoAction(backgrap,0.7))
                         .waitSeconds(0.3)
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,0))
                         //Reset lift
@@ -97,8 +83,7 @@ public class Chamber_Drive_OPT extends LinearOpMode {
                         //Wait for human player to set the sample
                         .splineToConstantHeading(new Vector2d(-61.5, -37), Math.PI)
                         //Get Sample
-                        .stopAndAdd(new PatientServoAction(backgrap,0))
-                        .waitSeconds(0.5)
+                        .waitSeconds(0.21)
                         //Lift up first
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,1450))
                         .setTangent(0)
@@ -107,15 +92,13 @@ public class Chamber_Drive_OPT extends LinearOpMode {
                         //Set Sample 2
                         .stopAndAdd(new PatientMotorAction(Left_Hanging_Motor,Right_Hanging_Motor,930))
                         .waitSeconds(0.2)
-                        .stopAndAdd(new PatientServoAction(backgrap,0.7))
-                        .waitSeconds(0.4)
+                        .waitSeconds(0.3)
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,0))
                         .setTangent(180)
 
                         .splineToSplineHeading(new Pose2d(-53,-37,Math.PI),Math.PI)
                         .splineToConstantHeading(new Vector2d(-61,-37),0)
-                        .stopAndAdd(new PatientServoAction(backgrap,0))
-                        .waitSeconds(0.5)
+                        .waitSeconds(0.21)
 
                         //Lift up first
                         .setTangent(0)
@@ -125,11 +108,10 @@ public class Chamber_Drive_OPT extends LinearOpMode {
                         //set sample
                         .stopAndAdd(new PatientMotorAction(Left_Hanging_Motor,Right_Hanging_Motor,930))
                         .waitSeconds(0.2)
-                        .stopAndAdd(new PatientServoAction(backgrap,0.7))
-                        .waitSeconds(0.4)
+                        .waitSeconds(0.3)
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,0))
                         .setTangent(180)
-                        .splineToConstantHeading(new Vector2d(-59,-55),-Math.PI/2)
+                        .splineToConstantHeading(new Vector2d(-60,-60),-Math.PI/2)
                         //.waitSeconds(0.3)
                         //.splineToConstantHeading(new Vector2d(60,37),0)
                         //.stopAndAdd(new PatientServoAction(backgrap,GRAB_CLOSE))

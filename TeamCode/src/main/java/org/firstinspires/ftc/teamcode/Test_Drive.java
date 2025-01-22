@@ -21,7 +21,7 @@ import org.firstinspires.ftc.teamcode.TwoDeadWheelLocalizer;
 
 @Autonomous(name = "First_Auto_ChamberDrive_BY27570_TestDrive",group = "old")
 public class Test_Drive extends LinearOpMode {
-    private Servo backgrap;
+    private Servo backgrap,frame,forward_slide, arm_forward, claw_shu, forward_claw, claw_heng;
     private DcMotorEx Left_Hanging_Motor, Right_Hanging_Motor;
     @Override
     public void runOpMode() throws InterruptedException {
@@ -38,25 +38,30 @@ public class Test_Drive extends LinearOpMode {
         Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_USING_ENCODER);
         backgrap = hardwareMap.get(Servo.class, "backgrap");
+        frame = hardwareMap.get(Servo.class, "frame");
+        forward_slide = hardwareMap.get(Servo.class, "forward_slide");
+        arm_forward = hardwareMap.get(Servo.class, "arm_forward");
+        claw_shu = hardwareMap.get(Servo.class, "claw_shu");
+        forward_claw = hardwareMap.get(Servo.class, "forward_claw");
+        claw_heng = hardwareMap.get(Servo.class, "claw_heng");
+        forward_claw.setPosition(1);
+        claw_heng.setPosition(0.55);
+        frame.setPosition(0.7);
+        backgrap.setPosition(0.5);
+        forward_slide.setPosition(0.88);
+        arm_forward.setPosition(0.8);
+        claw_shu.setPosition(0.5);
         backgrap.setPosition(0);
         waitForStart();
 
         Actions.runBlocking(
                 Drive.actionBuilder(new Pose2d(-62.5,-9.5,0))
-                        .setTangent(0)
-                        //Lift up first
-                        .setTangent(0)
-                        //Lift up first
-                        .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,1450))
-                        .splineToConstantHeading(new Vector2d(-33.75, -9.5), 0)
-                        //First Chamber set
-                        .stopAndAdd(new PatientMotorAction(Left_Hanging_Motor,Right_Hanging_Motor,930))
-                        .stopAndAdd(new PatientServoAction(backgrap,0.7))
-                        .waitSeconds(0.3)
-                        .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,0))
+                        .stopAndAdd(new PatientServoAction(claw_shu,0.2))
+                        .stopAndAdd(new PatientServoAction(arm_forward,0.9))
+                        .stopAndAdd(new PatientServoAction(forward_claw,1))
+                        .waitSeconds(2)
 
-                        .setTangent(180)
-                        .splineToConstantHeading(new Vector2d(-59,-55),-Math.PI/2)
+
                         .build());
     }public class PatientServoAction implements Action {
         Servo FrontSlide = null;

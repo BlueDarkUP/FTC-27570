@@ -26,6 +26,9 @@ public class RecordAndReturn extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
+            // 更新机器人的位置和朝向
+            drive.updatePoseEstimate();
+
             // 通过摇杆控制底盘运动
             driveControl();
 
@@ -58,13 +61,16 @@ public class RecordAndReturn extends LinearOpMode {
             telemetry.update();
         }
     }
-
     // 通过摇杆控制底盘运动
     private void driveControl() {
         // 获取摇杆输入
-        double y = -gamepad1.left_stick_y; // 前后移动
-        double x = gamepad1.left_stick_x;  // 左右移动
-        double rx = gamepad1.right_stick_x; // 旋转
+        double y = gamepad1.left_stick_y; // 前后移动
+        double x = -gamepad1.left_stick_x; // 左右移动
+
+        // 使用左右扳机键控制旋转
+        double leftTrigger = gamepad1.left_trigger; // 左扳机键 (0 到 1)
+        double rightTrigger = gamepad1.right_trigger; // 右扳机键 (0 到 1)
+        double rx = rightTrigger - leftTrigger; // 旋转控制：右扳机键增加旋转，左扳机键减少旋转
 
         // 计算机器人运动功率
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1);
