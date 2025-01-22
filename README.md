@@ -24,6 +24,26 @@ In this season’s challenge, our robot performs tasks like completing three cha
 
 ---
 
+## 🏆 Recent Achievements
+
+We are thrilled to announce our recent successes in the **FIRST Tech Challenge** competitions in Shanghai!
+
+- **Shanghai First Competition**:  
+  🥇 **Design Award - 1st Place**  
+  Our team's innovative design and engineering excellence were recognized with the top honor in the Design Award category.
+
+- **Shanghai Third Competition**:  
+  🥇 **Control Award - 1st Place**  
+  Our precise and efficient control systems earned us the Control Award, showcasing our technical expertise.
+
+Additionally, we want to congratulate our sister team, **Team 25787**, for their outstanding performance in the **Shanghai Third Competition**:
+- 🥇 **Championship Award - 1st Place**
+- 🥇 **Think Award - 1st Place**
+
+Their hard work and creativity have brought immense pride to our school and community. Together, we continue to push the boundaries of robotics and innovation!
+
+---
+
 ## 📚 Getting Help
 
 ### **User Documentation & Tutorials**
@@ -55,13 +75,6 @@ We’re always excited to collaborate with other teams and answer questions.
 A huge thank you to our sponsor:  
 **Feetech 飞特舵机**  
 Your generous support helps us push the limits of what we can achieve!
-
----
-
-## 🏆 FTC Official GitHub
-
-For more resources, code, and collaboration, visit the official **FIRST Tech Challenge** GitHub account:  
-[**FIRST Tech Challenge GitHub**](https://github.com/FIRST-Tech-Challenge)
 
 ---
 
