@@ -113,7 +113,7 @@ public class SingleStickWithRR extends LinearOpMode {
 
     private void driveRobot(double robotHeading) {
         double y = gamepad1.left_stick_y, x = -gamepad1.left_stick_x, rx = gamepad1.right_trigger - gamepad1.left_trigger;
-        double rotX = x * Math.cos(-Math.toRadians(robotHeading)) - y * Math.sin(-Math.toRadians(robotHeading));
+        double rotX = x * Math.cos(-Math.toRadians(robotHeading)) - y * Math.sin(-Math.toRadians(robotHeading)); //无头模式
         double rotY = x * Math.sin(-Math.toRadians(robotHeading)) + y * Math.cos(-Math.toRadians(robotHeading));
         double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
 
@@ -124,11 +124,11 @@ public class SingleStickWithRR extends LinearOpMode {
     }
 
     private void handleLeftBumper() {
-        if (isLeftBumperFirstPress) {
+        if (isLeftBumperFirstPress) { //记录位置
             recordedPoseBasket = drive.pose;
             telemetry.addData("Recorded Pose Basket", "X: %.2f, Y: %.2f, Heading: %.2f", recordedPoseBasket.position.x, recordedPoseBasket.position.y, Math.toDegrees(recordedPoseBasket.heading.toDouble()));
             isLeftBumperFirstPress = false;
-        } else {
+        } else {  //自动驾驶到记录的位置
             Actions.runBlocking(drive.actionBuilder(drive.pose).splineToSplineHeading(recordedPoseBasket, 0).build());
             telemetry.addData("Current Pose Basket", "X: %.2f, Y: %.2f, Heading: %.2f", drive.pose.position.x, drive.pose.position.y, Math.toDegrees(drive.pose.heading.toDouble()));
         }
