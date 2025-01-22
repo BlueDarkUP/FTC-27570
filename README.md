@@ -36,7 +36,7 @@ We are thrilled to announce our recent successes in the **FIRST Tech Challenge**
   🥇 **Control Award - 1st Place**  
   Our precise and efficient control systems earned us the Control Award, showcasing our technical expertise.
 
-Additionally, we want to congratulate our sister team, **Team 25787**, for their outstanding performance in the **Shanghai Third Competition**:
+Additionally, we want to congratulations to the international team of our school as well, **Team 25787**, for their outstanding performance in the **Shanghai Third Competition**:
 - 🥇 **Championship Award - 1st Place**
 - 🥇 **Think Award - 1st Place**
 
