@@ -1,4 +1,4 @@
-# 🦾 Team 27570 - Bears
+# 🦾 Team 27570 - B.E.A.R. - BAYI RONG ZHEN
 
 Welcome to the public FTC code repository for the **"INTO THE DEEP"** (2024-2025) competition season!  
 We are **Team 27570 - Bears**, and we’re excited to share our work with the community.  
@@ -28,15 +28,15 @@ In this season’s challenge, our robot performs tasks like completing four cham
 
 We are thrilled to announce our recent successes in the **FIRST Tech Challenge** competitions in Shanghai!
 
-- **Shanghai First Competition**:  
+- **Shanghai #1 Qualifier**:  
   🥇 **Design Award - 1st Place**  
   Our team's innovative design and engineering excellence were recognized with the top honor in the Design Award category.
 
-- **Shanghai Third Competition**:  
+- **China FTC Shanghai #3 Qualifier**:  
   🥇 **Control Award - 1st Place**  
   Our precise and efficient control systems earned us the Control Award, showcasing our technical expertise.
 
-Additionally, we want to congratulations to the international team of our school as well, **Team 25787**, for their outstanding performance in the **Shanghai Third Competition**:
+Additionally, we want to congratulations to the international team of our school as well, **Team 25787**, for their outstanding performance in the **China FTC Shanghai #3 Qualifier**:
 - 🥇 **Championship Award - 1st Place**
 - 🥇 **Think Award - 1st Place**
 
