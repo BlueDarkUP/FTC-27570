@@ -15,7 +15,7 @@ This repository contains the public FTC code for the **"INTO THE DEEP"** (2024-2
 ## 💻 Our Code
 
 Our code is based on **Android Studio** and utilizes **Roadrunner** for motion planning. To get the best results, we recommend you first get familiar with **Roadrunner**.  
-In this season’s challenge, our robot performs tasks like completing three chambers and pushing two samples to the observation zone during the autonomous period, allowing us to score 63 points.
+In this season’s challenge, our robot performs tasks like completing three chambers and pushing two samples to the observation zone during the autonomous period, allowing us to score 83 points for chamber and 51 for basket
 
 ### 🚀 Key Features:
 - **Android Studio** for development
