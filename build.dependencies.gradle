@@ -7,6 +7,7 @@ repositories {
 }
 
 dependencies {
+    implementation 'org.openftc:easyopencv:1.7.3'
     implementation 'org.firstinspires.ftc:Inspection:10.1.1'
     implementation 'org.firstinspires.ftc:Blocks:10.1.1'
     implementation 'org.firstinspires.ftc:RobotCore:10.1.1'
