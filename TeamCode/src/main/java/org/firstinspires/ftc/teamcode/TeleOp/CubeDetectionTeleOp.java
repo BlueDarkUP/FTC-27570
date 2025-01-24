@@ -65,34 +65,34 @@ public class CubeDetectionTeleOp extends LinearOpMode {
         if (isStopRequested()) return;
 
         // 主循环，当 OpMode 处于活动状态时持续运行
+        // 修改主循环部分
         while (opModeIsActive()) {
-            // 检测 gamePad1 的圆形按钮是否被按下
             if (gamepad1.circle) {
-                // 记录当前机器人的位置
-                Pose2d recordPose = drive.pose;
-                // 通过遥测数据输出记录的机器人位置
-                telemetry.addData("Recorded Pose Basket", "X: %.2f, Y: %.2f, Heading: %.2f",
-                        recordPose.position.x, recordPose.position.y, Math.toDegrees(recordPose.heading.toDouble()));
-                telemetry.addLine("Processing frame..."); // 添加一行消息
-                telemetry.update(); // 更新遥测数据
-
-                // 等待圆形按钮松开，同时 OpMode 仍处于活动状态
-                while (gamepad1.circle && opModeIsActive()) {
-                    idle(); // 空闲
+                CubeDetectionResult currentResult = this.result; // 获取当前结果快照
+                if (currentResult == null) {
+                    telemetry.addData("Error", "No detection result yet.");
+                    telemetry.update();
+                    continue;
                 }
 
-                // 使用 Road Runner 的 ActionBuilder 构建一个动作，将机器人移动到指定位置
+                Pose2d recordPose = drive.pose;
+                // 使用currentResult代替result
+                double forwardInches = currentResult.moveForward * 0.39370;
+                double sidewaysInches = currentResult.moveSideways * 0.39370;
+
                 Actions.runBlocking(
-                        drive.actionBuilder(drive.pose) // 从当前位置开始构建动作
+                        drive.actionBuilder(recordPose)
                                 .splineToConstantHeading(
-                                        new Vector2d(recordPose.position.x + result.moveForward * 0.39370,
-                                                recordPose.position.y + result.moveSideways * 0.39370),
-                                        0.0) // 移动到指定位置，并保持方向不变
+                                        new Vector2d(
+                                                recordPose.position.x + forwardInches,
+                                                recordPose.position.y + sidewaysInches
+                                        ), 0.0)
                                 .build()
                 );
-                telemetry.addLine("Moved to pose"); // 输出成功移动的消息
-                telemetry.update(); // 更新遥测数据
+
+                while (gamepad1.circle && opModeIsActive()) { idle(); }
             }
+            telemetry.update(); // 主线程统一更新遥测
         }
     }
 
@@ -115,7 +115,7 @@ public class CubeDetectionTeleOp extends LinearOpMode {
                 telemetry.addLine("-------------------- Final Results --------------------");
                 telemetry.addData("Move Forward", result.moveForward + " cm");
                 telemetry.addData("Move Sideways", result.moveSideways + " cm");
-                telemetry.addData("Claw Angle", result.clawAngle + "°");
+                telemetry.addData("Claw Angle", result.clawAngle     + "°");
                 telemetry.update(); // 更新遥测数据
             }
 
