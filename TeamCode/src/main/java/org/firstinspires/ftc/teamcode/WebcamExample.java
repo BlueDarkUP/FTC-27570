@@ -1,3 +1,24 @@
+/*
+ * Copyright (c) 2019 OpenFTC Team
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+
 package org.firstinspires.ftc.teamcode;
 
 import com.acmerobotics.roadrunner.Pose2d;
@@ -14,7 +35,17 @@ import java.util.ArrayList;
 import java.util.List;
 
 @TeleOp(name = "AutonomousVisionOpMode")
-public class AutonomousVisionOpMode extends LinearOpMode {
+public class WebcamExample extends LinearOpMode {
+
+    private enum CameraType {
+        INTERNAL_CAMERA_V1,
+        INTERNAL_CAMERA_V2,
+        WEBCAM
+    }
+
+    private static final CameraType CAMERA_TYPE = CameraType.WEBCAM; // 设置摄像头类型
+    private OpenCvCamera camera;
+
 
     // --- 可调参数 ---
     private static final double PIXELS_TO_CM_RATIO = 0.01;
@@ -35,95 +66,30 @@ public class AutonomousVisionOpMode extends LinearOpMode {
     private static final Scalar YELLOW_LOWER = new Scalar(20, 150, 180);
     private static final Scalar YELLOW_UPPER = new Scalar(40, 255, 255);
 
-    // 使用volatile保证多线程可见性
-    private volatile double moveForward = 0;
-    private volatile double moveSideways = 0;
-    private volatile double clawAngle = 0;
 
     private volatile boolean isProcessing = false; // 使用信号量
     private boolean previousBButtonState = false; // 存储上一次按钮状态
-
-    private OpenCvWebcam webcam;
     private Pose2d recordedPose = null;
-    private volatile boolean cameraInitialized = false; // 标志相机是否初始化成功
+    private volatile boolean cameraInitialized = false;
+    private MecanumDrive drive;
+    private ColorDetectionPipelineImpl pipeline;
 
     @Override
     public void runOpMode() {
-        MecanumDrive drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
-        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
-                "cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
-        webcam = OpenCvCameraFactory.getInstance().createWebcam(
-                hardwareMap.get(WebcamName.class, "Webcam 1"), cameraMonitorViewId);
-
-        ColorDetectionPipelineImpl pipeline = new ColorDetectionPipelineImpl();
-        webcam.setPipeline(pipeline);
-
-        // 设置相机超时时间和重试机制
-        final int MAX_RETRIES = 3;
-        int retries = 0;
-        webcam.setMillisecondsPermissionTimeout(5000); //设置5秒的超时时间
-
-        while (retries < MAX_RETRIES && !isStarted()) {
-            // 使用 try-catch 块捕获相机初始化异常
-            try {
-                webcam.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
-                    @Override
-                    public void onOpened() {
-                        // 相机成功打开，开始预览
-                        webcam.startStreaming(1280, 720, OpenCvCameraRotation.UPRIGHT);
-                        telemetry.addData("Camera Status", "Opened");
-                        telemetry.update();
-                        cameraInitialized = true; // 设置初始化标志
-                    }
-
-                    @Override
-                    public void onError(int errorCode) {
-                        // 相机打开失败，输出错误信息
-                        telemetry.addData("Camera Error", "Code: " + errorCode);
-                        telemetry.update();
-                    }
-                });
-
-                // 如果相机开始预览，退出循环
-                if(cameraInitialized) {
-                    break;
-                }
-
-            }  catch (Exception e) {
-                //捕获其他异常
-                telemetry.addData("Camera Error", "Exception: " + e.getMessage());
-                telemetry.update();
-            }
-
-            if(!isStarted()) {
-                //等待 1 秒后重试
-                sleep(1000);
-                retries++;
-                if(retries >= MAX_RETRIES){
-                    telemetry.addData("Camera Error", "Max retries reached, exiting");
-                    telemetry.update();
-                    requestOpModeStop();
-                    break;
-                }
-            } else {
-                break;
-            }
-        }
-
-
-        // 如果相机初始化失败，则退出 OpMode
-        if(!isStarted() || !cameraInitialized) {
-            telemetry.addData("Camera Status", "Initialization Failed, OpMode Stopped.");
-            telemetry.update();
+        drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
+        // 初始化摄像头
+        if (!initializeCamera()) {
             return;
-        } else{
-            // 相机初始化成功，等待开始
-            waitForStart();
         }
+
+        // 如果相机初始化成功，等待开始
+        telemetry.addLine("Waiting for start");
+        telemetry.update();
+        waitForStart();
+
 
         while (opModeIsActive()) {
             drive.updatePoseEstimate();
-
             // 检测B键是否被按下
             boolean currentBButtonState = gamepad1.b;
             if (currentBButtonState && !previousBButtonState) {
@@ -137,9 +103,10 @@ public class AutonomousVisionOpMode extends LinearOpMode {
             previousBButtonState = currentBButtonState; // 保存当前按钮状态
 
             if (isProcessing) {
+
                 //移动逻辑
-                double moveForwardinINCH = convertCmToInch(moveForward);
-                double moveSidewaysinINCH = convertCmToInch(moveSideways);
+                double moveForwardinINCH = convertCmToInch(pipeline.getMoveForward());
+                double moveSidewaysinINCH = convertCmToInch(pipeline.getMoveSideways());
 
                 try {
                     Actions.runBlocking(
@@ -156,26 +123,161 @@ public class AutonomousVisionOpMode extends LinearOpMode {
                 isProcessing = false; //处理完成后重置状态
             }
 
-            telemetry.addData("Move Forward (cm)", "%.1f", moveForward);
-            telemetry.addData("Move Sideways (cm)", "%.1f", moveSideways);
-            telemetry.addData("Claw Angle (deg)", "%.1f", clawAngle);
+            /*
+             * Send some stats to the telemetry
+             */
+            telemetry.addData("Frame Count", camera.getFrameCount());
+            telemetry.addData("FPS", String.format("%.2f", camera.getFps()));
+            telemetry.addData("Total frame time ms", camera.getTotalFrameTimeMs());
+            telemetry.addData("Pipeline time ms", camera.getPipelineTimeMs());
+            telemetry.addData("Overhead time ms", camera.getOverheadTimeMs());
+            telemetry.addData("Theoretical max FPS", camera.getCurrentPipelineMaxFps());
+
+            telemetry.addData("Move Forward (cm)", "%.1f", pipeline.getMoveForward());
+            telemetry.addData("Move Sideways (cm)", "%.1f", pipeline.getMoveSideways());
+            telemetry.addData("Claw Angle (deg)", "%.1f", pipeline.getClawAngle());
+
             telemetry.update();
+
+            /*
+             * NOTE: stopping the stream from the camera early (before the end of the OpMode
+             * when it will be automatically stopped for you) *IS* supported. The "if" statement
+             * below will stop streaming from the camera when the "A" button on gamepad 1 is pressed.
+             */
+            if (gamepad1.a) {
+                /*
+                 * IMPORTANT NOTE: calling stopStreaming() will indeed stop the stream of images
+                 * from the camera (and, by extension, stop calling your vision pipeline). HOWEVER,
+                 * if the reason you wish to stop the stream early is to switch use of the camera
+                 * over to, say, Vuforia or TFOD, you will also need to call closeCameraDevice()
+                 * (commented out below), because according to the Android Camera API documentation:
+                 *         "Your application should only have one Camera object active at a time for
+                 *          a particular hardware camera."
+                 *
+                 * NB: calling closeCameraDevice() will internally call stopStreaming() if applicable,
+                 * but it doesn't hurt to call it anyway, if for no other reason than clarity.
+                 *
+                 * NB2: if you are stopping the camera stream to simply save some processing power
+                 * (or battery power) for a short while when you do not need your vision pipeline,
+                 * it is recommended to NOT call closeCameraDevice() as you will then need to re-open
+                 * it the next time you wish to activate your vision pipeline, which can take a bit of
+                 * time. Of course, this comment is irrelevant in light of the use case described in
+                 * the above "important note".
+                 */
+                camera.stopStreaming();
+                //camera.closeCameraDevice();
+            }
+
+            /*
+             * For the purposes of this sample, throttle ourselves to 10Hz loop to avoid burning
+             * excess CPU cycles for no reason. (By default, telemetry is only sent to the DS at 4Hz
+             * anyway). Of course in a real OpMode you will likely not want to do this.
+             */
             sleep(50);
         }
-        webcam.stopStreaming();
+
+        //  在 OpMode 结束时关闭摄像头
+        if (camera != null) {
+            camera.stopStreaming();
+            camera.closeCameraDevice();
+        }
     }
+
+
+    private boolean initializeCamera() {
+        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier(
+                "cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+
+        try {
+            switch (CAMERA_TYPE) {
+                case INTERNAL_CAMERA_V1:
+                    camera = OpenCvCameraFactory.getInstance().createInternalCamera(
+                            OpenCvInternalCamera.CameraDirection.BACK, cameraMonitorViewId);
+                    break;
+                case INTERNAL_CAMERA_V2:
+                    camera = OpenCvCameraFactory.getInstance().createInternalCamera2(
+                            OpenCvInternalCamera2.CameraDirection.BACK, cameraMonitorViewId);
+                    break;
+                case WEBCAM:
+                    WebcamName webcamName = hardwareMap.get(WebcamName.class, "Webcam 1");
+                    camera = OpenCvCameraFactory.getInstance().createWebcam(webcamName, cameraMonitorViewId);
+                    break;
+            }
+
+            if (camera == null) {
+                telemetry.addData("Camera Error", "Failed to create camera instance.");
+                telemetry.update();
+                return false;
+            }
+
+            pipeline = new ColorDetectionPipelineImpl();
+            camera.setPipeline(pipeline);
+
+
+            camera.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
+                @Override
+                public void onOpened() {
+                    camera.startStreaming(1280, 720, OpenCvCameraRotation.UPRIGHT);
+                    cameraInitialized = true;
+                    telemetry.addData("Camera Status", "Opened");
+                    telemetry.update();
+                }
+
+                @Override
+                public void onError(int errorCode) {
+                    telemetry.addData("Camera Error", "Failed to open camera. Code: " + errorCode);
+                    telemetry.update();
+                }
+            });
+            // 等待相机初始化
+            while (!isStarted() && !cameraInitialized) {
+                sleep(100);
+            }
+
+            if (!cameraInitialized) {
+                telemetry.addData("Camera Status", "Initialization Failed, OpMode Stopped.");
+                telemetry.update();
+                return false; // 初始化失败，退出 OpMode
+            }
+
+
+        } catch (Exception e) {
+            telemetry.addData("Camera Error", "Exception: " + e.getMessage());
+            telemetry.update();
+            return false;
+        }
+
+        return true; // 初始化成功
+    }
+
 
     // 用于将厘米转换为英寸
     private double convertCmToInch(double cm) {
         return cm * 0.39370;
     }
 
+    /*
+     * 一个示例图像处理管道，用于在收到来自摄像头的每个帧时运行。
+     * 注意：此管道不是在您的 OpMode 线程上调用的。它是在帧工作线程上调用的。
+     */
     class ColorDetectionPipelineImpl extends OpenCvPipeline {
-        private final Mat hsvImage = new Mat();
+        private final Mat bgrImage = new Mat();  // 用于存储 BGR 图像
+        private final Mat hsvImage = new Mat(); // 用于存储 HSV 图像
         private final Mat mask = new Mat();
-        private final Mat outputImage = new Mat();
+        private  Mat outputImage = new Mat(); // 用于存储输出图像
+
         private final List<DetectedCube> detectedCubes = new ArrayList<>();
         private boolean viewportPaused;
+
+        private volatile double moveForward = 0;
+        private volatile double moveSideways = 0;
+        private volatile double clawAngle = 0;
+
+
+        @Override
+        public void init(Mat firstFrame) {
+            outputImage = new Mat(firstFrame.size(), firstFrame.type());
+        }
 
         @Override
         public Mat processFrame(Mat input) {
@@ -187,8 +289,10 @@ public class AutonomousVisionOpMode extends LinearOpMode {
             input.copyTo(outputImage);
             detectedCubes.clear();
 
-            // 颜色空间转换
-            Imgproc.cvtColor(input, hsvImage, Imgproc.COLOR_BGR2HSV);
+
+            // 颜色空间转换: RGBA -> BGR -> HSV
+            Imgproc.cvtColor(input, bgrImage, Imgproc.COLOR_RGBA2BGR);
+            Imgproc.cvtColor(bgrImage, hsvImage, Imgproc.COLOR_BGR2HSV);
 
             // 创建颜色掩码
             Mat redMask = createMask(hsvImage, RED_LOWER, RED_UPPER, "red");
@@ -208,9 +312,9 @@ public class AutonomousVisionOpMode extends LinearOpMode {
             detectColorRegions(input, outputImage, mask);
             calculateMovementAndClawAngle(outputImage);
 
+
             return outputImage;
         }
-
         // 创建颜色掩码
         private Mat createMask(Mat hsvImage, Scalar[] lowerBounds, Scalar[] upperBounds, String colorName) {
             Mat colorMask = new Mat(hsvImage.size(), CvType.CV_8UC1, Scalar.all(0));
@@ -354,35 +458,47 @@ public class AutonomousVisionOpMode extends LinearOpMode {
             return new double[]{xCm, yCm};
         }
 
+        public double getMoveForward() {
+            return moveForward;
+        }
+
+        public double getMoveSideways() {
+            return moveSideways;
+        }
+
+        public double getClawAngle() {
+            return clawAngle;
+        }
         @Override
         public void onViewportTapped() {
             viewportPaused = !viewportPaused;
-            if (viewportPaused) webcam.pauseViewport();
-            else webcam.resumeViewport();
+            if (viewportPaused) camera.pauseViewport();
+            else camera.resumeViewport();
         }
-    }
 
-    // 检测到的立方体数据结构
-    static class DetectedCube {
-        String color;
-        int centerXImagePx;
-        int centerYImagePx;
-        double centerXCm;
-        double centerYCm;
-        double angleDegrees;
-        Rect boundingBox;
-        double aspectRatio;
 
-        public DetectedCube(String color, int x, int y, double xCm, double yCm,
-                            double angle, Rect rect, double ratio) {
-            this.color = color;
-            this.centerXImagePx = x;
-            this.centerYImagePx = y;
-            this.centerXCm = xCm;
-            this.centerYCm = yCm;
-            this.angleDegrees = angle;
-            this.boundingBox = rect;
-            this.aspectRatio = ratio;
+        // 检测到的立方体数据结构
+        class DetectedCube {
+            String color;
+            int centerXImagePx;
+            int centerYImagePx;
+            double centerXCm;
+            double centerYCm;
+            double angleDegrees;
+            Rect boundingBox;
+            double aspectRatio;
+
+            public DetectedCube(String color, int x, int y, double xCm, double yCm,
+                                double angle, Rect rect, double ratio) {
+                this.color = color;
+                this.centerXImagePx = x;
+                this.centerYImagePx = y;
+                this.centerXCm = xCm;
+                this.centerYCm = yCm;
+                this.angleDegrees = angle;
+                this.boundingBox = rect;
+                this.aspectRatio = ratio;
+            }
         }
     }
 }
