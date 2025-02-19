@@ -10,16 +10,25 @@ import com.qualcomm.robotcore.hardware.Servo;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.MecanumDrive;
+import com.qualcomm.robotcore.hardware.IMU;
+import org.firstinspires.ftc.robotcore.external.navigation.YawPitchRollAngles;
+import org.firstinspires.ftc.robotcore.external.navigation.Orientation;
+import org.firstinspires.ftc.robotcore.external.navigation.AngularVelocity;
 
-@TeleOp(name = "比赛用手动程序", group = "Competition")
+
+@TeleOp(name = "比赛用手动程序(Debug)", group = "Competition") // 修改了OpMode名称，方便区分
 public class SingleStickWithRR extends LinearOpMode {
     private MecanumDrive drive;
     private Pose2d recordedPoseBasket = null;
     private Pose2d recordedPoseChamber = null;
-    private static final double CLAW_INCREMENT = 0.4, DEBOUNCE_DELAY = 200, SLIDE_DOWN_POWER = -0.6, FRAME_HOLD_POSITION = 0, FRAME_INITIAL_POSITION = 0.7, CLAW_SHU_ROTATE_POSITION = 1.0, CLAW_SHU_INITIAL_POSITION = 0.0, SERVO_SPEED_MULTIPLIER = 0.3, FRAME_SERVO_SPEED = 1, DRIVE_STOP_THRESHOLD = 0.01;
-    private static final int SLIDE_HIGH = 2580, SLIDE_MID = 1350, SLIDE_HANG = 930, SLIDE_HOME = 0, SLIDE_HIGH_START = 2000;
+    private static final double CLAW_INCREMENT = 0.55, DEBOUNCE_DELAY = 300, SLIDE_DOWN_POWER = -0.6, FRAME_HOLD_POSITION = 0, FRAME_INITIAL_POSITION = 0.57, CLAW_SHU_ROTATE_POSITION = 1.0, CLAW_SHU_INITIAL_POSITION = 0.0, SERVO_SPEED_MULTIPLIER = 0.3, FRAME_SERVO_SPEED = 1, DRIVE_STOP_THRESHOLD = 0.01;
+    private static final int SLIDE_HIGH = 2580, SLIDE_MID = 1550, SLIDE_HANG = 930, SLIDE_HOME = 0, SLIDE_HIGH_START = 2000;
+    private static final int SLIDE_TOLERANCE = 100;
+    private static final double SERVO_POSITION_TOLERANCE = 0.1; // 舵机位置容错范围 updated to 0.1
+    private static final int ENCODER_POSITION_TOLERANCE = 100; // 编码器位置容错范围 updated to 100
 
-    private enum SlideState { IDLE, MOVING_TO_POSITION, MANUAL_DOWN, HANGING_PAUSE }
+    private enum SlideState {IDLE, MOVING_TO_POSITION, MANUAL_DOWN, HANGING_PAUSE}
+
     private SlideState slideState = SlideState.IDLE;
 
     private boolean isClawShuRotating = false, isFrameMoving = false, isAutoSlideDown = false, isClawOpen = false, isForwardClawOpen = false, isClawHengOpen = true, armForwardPosition = true, isFirstReset = true, isLeftBumperFirstPress = true;
@@ -28,6 +37,7 @@ public class SingleStickWithRR extends LinearOpMode {
     private DcMotor leftFrontDrive, rightFrontDrive, leftBackDrive, rightBackDrive, Left_Hanging_Motor, Right_Hanging_Motor;
     private Servo backgrap, forward_slide, arm_forward, claw_shu, forward_claw, claw_heng, frame;
     private GoBildaPinpointDriver odo;
+    private IMU imu;
 
     private long lastOptionButtonPressTime = 0, lastSquareButtonPressTime = 0, lastForwardButtonPressTime = 0, lastBackButtonPressTime = 0, lastCircleButtonPressTime = 0, lastTriangleButtonPressTime = 0, lastCrossButtonPressTime = 0, lastRightStickPressTime = 0, frameMoveStartTime = 0;
     private long hangStartTime = 0;
@@ -113,7 +123,7 @@ public class SingleStickWithRR extends LinearOpMode {
 
     private void driveRobot(double robotHeading) {
         double y = gamepad1.left_stick_y, x = -gamepad1.left_stick_x, rx = gamepad1.right_trigger - gamepad1.left_trigger;
-        double rotX = x * Math.cos(-Math.toRadians(robotHeading)) - y * Math.sin(-Math.toRadians(robotHeading)); //无头模式
+        double rotX = x * Math.cos(-Math.toRadians(robotHeading)) - y * Math.sin(-Math.toRadians(robotHeading));
         double rotY = x * Math.sin(-Math.toRadians(robotHeading)) + y * Math.cos(-Math.toRadians(robotHeading));
         double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
 
@@ -124,11 +134,11 @@ public class SingleStickWithRR extends LinearOpMode {
     }
 
     private void handleLeftBumper() {
-        if (isLeftBumperFirstPress) { //记录位置
+        if (isLeftBumperFirstPress) {
             recordedPoseBasket = drive.pose;
             telemetry.addData("Recorded Pose Basket", "X: %.2f, Y: %.2f, Heading: %.2f", recordedPoseBasket.position.x, recordedPoseBasket.position.y, Math.toDegrees(recordedPoseBasket.heading.toDouble()));
             isLeftBumperFirstPress = false;
-        } else {  //自动驾驶到记录的位置
+        } else {
             Actions.runBlocking(drive.actionBuilder(drive.pose).
                     splineToSplineHeading(recordedPoseBasket, 0)
                     .build());
@@ -136,7 +146,8 @@ public class SingleStickWithRR extends LinearOpMode {
         }
         telemetry.update();
 
-        if (claw_shu.getPosition() == clawShuInitPosition) {
+        // Modified servo position check with tolerance
+        if (Math.abs(claw_shu.getPosition() - clawShuInitPosition) < SERVO_POSITION_TOLERANCE) {
             claw_shu.setPosition(CLAW_SHU_ROTATE_POSITION);
             isClawShuRotating = true;
         } else {
@@ -146,7 +157,8 @@ public class SingleStickWithRR extends LinearOpMode {
     }
 
     private void handleFrame() {
-        if (isFrameMoving && frameCurrentPosition == FRAME_HOLD_POSITION && (System.currentTimeMillis() - frameMoveStartTime >= 490)) {
+        // Modified servo position check with tolerance
+        if (isFrameMoving && Math.abs(frame.getPosition() - FRAME_HOLD_POSITION) < SERVO_POSITION_TOLERANCE && (System.currentTimeMillis() - frameMoveStartTime >= 490)) {
             isFrameMoving = false;
         }
         if (!isFrameMoving) {
@@ -191,6 +203,7 @@ public class SingleStickWithRR extends LinearOpMode {
         rightBackDrive = hardwareMap.get(DcMotor.class, "LeftFrontMotor");
         Left_Hanging_Motor = hardwareMap.get(DcMotor.class, "LeftHangingMotor");
         Right_Hanging_Motor = hardwareMap.get(DcMotor.class, "RightHangingMotor");
+        imu = hardwareMap.get(IMU.class, "imu");
 
         leftFrontDrive.setDirection(DcMotorSimple.Direction.REVERSE);
         leftBackDrive.setDirection(DcMotorSimple.Direction.REVERSE);
@@ -251,9 +264,12 @@ public class SingleStickWithRR extends LinearOpMode {
     private void controlServos() {
         if (gamepad1.dpad_up && debounce(lastForwardButtonPressTime)) {
             lastForwardButtonPressTime = System.currentTimeMillis();
-            forward_slide.setPosition(0.4);
+            forward_slide.setPosition(0.53);
             arm_forward.setPosition(0.4);
             claw_shu.setPosition(CLAW_SHU_ROTATE_POSITION);
+            telemetry.addLine("--- Dpad Up Pressed ---"); // Debug Telemetry
+            telemetry.addData("Arm Forward Position (Dpad Up)", arm_forward.getPosition()); // Debug Telemetry
+            telemetry.update(); // Force update to see immediately
         }
         if (gamepad1.dpad_down && debounce(lastBackButtonPressTime)) {
             lastBackButtonPressTime = System.currentTimeMillis();
@@ -263,6 +279,9 @@ public class SingleStickWithRR extends LinearOpMode {
             arm_forward.setPosition(0.8);
             claw_shu.setPosition(CLAW_SHU_INITIAL_POSITION);
             claw_heng.setPosition(0.55);
+            telemetry.addLine("--- Dpad Down Pressed ---"); // Debug Telemetry
+            telemetry.addData("Arm Forward Position (Dpad Down)", arm_forward.getPosition()); // Debug Telemetry
+            telemetry.update(); // Force update to see immediately
         }
 
         if (gamepad1.circle && debounce(lastCircleButtonPressTime)) {
@@ -273,13 +292,18 @@ public class SingleStickWithRR extends LinearOpMode {
         // 处理交叉按钮逻辑
         if (gamepad1.cross && debounce(lastCrossButtonPressTime)) {
             lastCrossButtonPressTime = System.currentTimeMillis();
-            if(armForwardPosition) {
+            if (armForwardPosition) {
                 arm_forward.setPosition(0.15);
                 armForwardPosition = false;
+                telemetry.addLine("--- Cross Button Pressed (Position 0.15) ---"); // Debug Telemetry
             } else {
                 arm_forward.setPosition(0.4);
                 armForwardPosition = true;
+                telemetry.addLine("--- Cross Button Pressed (Position 0.4) ---"); // Debug Telemetry
             }
+            telemetry.addData("Arm Forward Position (Cross)", arm_forward.getPosition()); // Debug Telemetry
+            telemetry.addData("armForwardPosition Boolean", armForwardPosition); // Debug Telemetry
+            telemetry.update(); // Force update to see immediately
         }
 
 
@@ -305,7 +329,17 @@ public class SingleStickWithRR extends LinearOpMode {
     }
 
     private boolean isSlideBusy() {
-        return !Left_Hanging_Motor.isBusy() && !Right_Hanging_Motor.isBusy();
+        // 获取电机当前位置和目标位置
+        int leftCurrentPos = Left_Hanging_Motor.getCurrentPosition();
+        int rightCurrentPos = Right_Hanging_Motor.getCurrentPosition();
+        int leftTargetPos = Left_Hanging_Motor.getTargetPosition();
+        int rightTargetPos = Right_Hanging_Motor.getTargetPosition();
+
+        // 使用容忍范围
+        int tolerance = SLIDE_TOLERANCE;
+
+        // 如果两个电机都接近目标位置，则认为不忙碌
+        return Math.abs(leftCurrentPos - leftTargetPos) > tolerance || Math.abs(rightCurrentPos - rightTargetPos) > tolerance;
     }
 
     private void handleSlideMovement() {
@@ -321,19 +355,22 @@ public class SingleStickWithRR extends LinearOpMode {
                 handleLeftBumper();
                 isAutoSlideDown = true;
             } else if (gamepad1.dpad_left) {
-                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 setSlidePosition(SLIDE_MID);
+                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 slideState = SlideState.MOVING_TO_POSITION;
 
+
             } else if (gamepad1.dpad_right) {
-                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
-                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 setSlidePosition(SLIDE_HANG);
+                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 slideState = SlideState.MOVING_TO_POSITION;
             }
 
             if (gamepad1.right_bumper) {
+                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
+                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.FLOAT);
                 Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                 Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                 Left_Hanging_Motor.setPower(SLIDE_DOWN_POWER);
@@ -341,18 +378,23 @@ public class SingleStickWithRR extends LinearOpMode {
                 slideState = SlideState.MANUAL_DOWN;
             }
 
-        } else if (slideState == SlideState.MOVING_TO_POSITION && isSlideBusy() ) {
-            if(Left_Hanging_Motor.getTargetPosition() == SLIDE_HANG){
-                hangStartTime = System.currentTimeMillis();
-                backgrap.setPosition(0);
-                slideState = SlideState.HANGING_PAUSE;
-            } else if (Left_Hanging_Motor.getTargetPosition() == 0){
+        } else if (slideState == SlideState.MOVING_TO_POSITION && !isSlideBusy()) {
+            if (Left_Hanging_Motor.getTargetPosition() == SLIDE_HANG) {
                 slideState = SlideState.IDLE;
                 Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Left_Hanging_Motor.setPower(0);
                 Right_Hanging_Motor.setPower(0);
-            }else if (Left_Hanging_Motor.getTargetPosition() == SLIDE_MID){
+                telemetry.addData("滑轨状态", "到达挂钩位置, 直接进入 IDLE");
+                backgrap.setPosition(0);
+            } else if (Left_Hanging_Motor.getTargetPosition() == 0) {
+                slideState = SlideState.IDLE;
+                Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
+                Left_Hanging_Motor.setPower(0);
+                Right_Hanging_Motor.setPower(0);
+            } else if (Left_Hanging_Motor.getTargetPosition() == SLIDE_MID) {
+                slideState = SlideState.IDLE;
                 Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 slideState = SlideState.IDLE;
@@ -365,8 +407,7 @@ public class SingleStickWithRR extends LinearOpMode {
                 setSlidePosition(0);
                 slideState = SlideState.MOVING_TO_POSITION;
             }
-        }
-        else if (slideState == SlideState.MANUAL_DOWN) {
+        } else if (slideState == SlideState.MANUAL_DOWN) {
             if (!gamepad1.right_bumper) {
                 Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
@@ -374,7 +415,7 @@ public class SingleStickWithRR extends LinearOpMode {
                 Right_Hanging_Motor.setPower(0);
                 slideState = SlideState.IDLE;
             }
-        } else if (isSlideBusy()) {
+        } else if (!isSlideBusy()) {
             Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
             if (slideState == SlideState.MOVING_TO_POSITION) {
@@ -384,19 +425,29 @@ public class SingleStickWithRR extends LinearOpMode {
             Right_Hanging_Motor.setPower(0);
         }
         if (isClawShuRotating) {
-            if (claw_shu.getPosition() == CLAW_SHU_ROTATE_POSITION) {
+            // Modified servo position check with tolerance
+            if (Math.abs(claw_shu.getPosition() - CLAW_SHU_ROTATE_POSITION) < SERVO_POSITION_TOLERANCE) {
                 sleep(300);
                 setSlidePosition(SLIDE_HIGH);
                 slideState = SlideState.MOVING_TO_POSITION;
                 isClawShuRotating = false;
             }
         }
-        if (slideState == SlideState.MOVING_TO_POSITION && Left_Hanging_Motor.getCurrentPosition() >= SLIDE_HIGH_START && !isFrameMoving) {
+        // Modified encoder position check with tolerance (optional)
+        if (slideState == SlideState.MOVING_TO_POSITION &&
+                Math.abs(Left_Hanging_Motor.getCurrentPosition() - SLIDE_HIGH_START) < ENCODER_POSITION_TOLERANCE && !isFrameMoving) {
             frameMoveStartTime = System.currentTimeMillis();
             frameCurrentPosition = FRAME_HOLD_POSITION;
             frame.setPosition(frameCurrentPosition);
             isFrameMoving = true;
         }
+        // 新增的代码段 -  滑轨在框架移动 5 秒后自动下降
+        if (isFrameMoving && slideState == SlideState.MOVING_TO_POSITION && (System.currentTimeMillis() - frameMoveStartTime >= 5000)) {
+            setSlidePosition(SLIDE_HOME);
+            slideState = SlideState.MOVING_TO_POSITION;
+            isFrameMoving = false;
+        }
+
         if (isAutoSlideDown && slideState == SlideState.IDLE && !isFrameMoving) {
             setSlidePosition(SLIDE_HOME);
             slideState = SlideState.MOVING_TO_POSITION;
@@ -418,6 +469,10 @@ public class SingleStickWithRR extends LinearOpMode {
         telemetry.addData("框舵机目标位置:", frameCurrentPosition);
         telemetry.addData("控制", "左肩=高位, D-pad左=中位, D-pad右=挂钩, 长按右肩=下降, Y=复位,右摇杆按钮=IMU重置");
         telemetry.addData("提示", "按下圆形按键控制前爪, 右摇杆控制前爪自由度,  三角键：前爪横向自由度， 交叉键：小臂");
+
+        // --- Debug Telemetry ---
+        telemetry.addData("Arm Forward Servo", "Position: %.2f", arm_forward.getPosition()); // Added for debugging
+        telemetry.addData("armForwardPosition Boolean", armForwardPosition); // Added for debugging
         telemetry.update();
     }
 }
