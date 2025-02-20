@@ -65,29 +65,29 @@ public final class MecanumDrive {
         // drive model parameters
         public double inPerTick = 0.00295836106796834553657273870276;
         public double lateralInPerTick =  0.0020997270568513067;
-        public double trackWidthTicks = 4539.898194907121;
+        public double trackWidthTicks = 4452.449543562774;
 
-        // feedforward parameters (in tick units)k
+        // feedforward parameters (in tick units)
         public double kS = 1.10356504327835;
         public double kV =  0.00038711604656932946;
         public double kA = 0.00012;
 
         // path profile parameters (in inches)
         public double maxWheelVel = 65;
-        public double minProfileAccel = -80;
-        public double maxProfileAccel = 90;
+        public double minProfileAccel = -120;
+        public double maxProfileAccel = 120;
 
         // turn profile parameters (in radians)
         public double maxAngVel = 10*Math.PI; // shared with path
         public double maxAngAccel = 10*Math.PI;
 
         // path controller gains
-        public double axialGain = 7;
+        public double axialGain = 8;
         public double lateralGain = 4;
         public double headingGain = 2; // shared with turn
 
         public double axialVelGain = 0;
-        public double lateralVelGain = 0;
+        public double lateralVelGain = 0.;
         public double headingVelGain = 0; // shared with turn
     }
 
@@ -291,7 +291,7 @@ public final class MecanumDrive {
             PoseVelocity2d robotVelRobot = updatePoseEstimate();
 
             Pose2d error = txWorldTarget.value().minusExp(pose);
-            if ((t >= timeTrajectory.duration&& error.position.norm()<2&&error.heading.toDouble()<0.01)||t>=timeTrajectory.duration+0.5) {
+            if ((t >= timeTrajectory.duration&& error.position.norm()<3&&error.heading.toDouble()<0.01)||t>=timeTrajectory.duration+0.6) {
                 leftFront.setPower(0);
                 leftBack.setPower(0);
                 rightBack.setPower(0);

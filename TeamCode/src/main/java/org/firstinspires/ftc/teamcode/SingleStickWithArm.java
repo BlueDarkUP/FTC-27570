@@ -1,6 +1,11 @@
 package org.firstinspires.ftc.teamcode;
+import androidx.annotation.NonNull;
+
+import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
+import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
 import com.acmerobotics.roadrunner.Vector2d;
+import com.acmerobotics.roadrunner.ftc.Actions;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
 import com.qualcomm.robotcore.eventloop.opmode.TeleOp;
 import com.qualcomm.robotcore.hardware.DcMotor;
@@ -17,10 +22,10 @@ import org.firstinspires.ftc.teamcode.TeleOp.GoBildaPinpointDriver;
 public class SingleStickWithArm extends LinearOpMode {
     private MecanumDrive drive;
     private static final double CLAW_INCREMENT = 0.55;
-    private static final double DEBOUNCE_DELAY = 300;
-    private static final double BACK_ARM_RESET_POSITION = 0.07;
+    private static final double DEBOUNCE_DELAY = 250;
+    private static final double BACK_ARM_RESET_POSITION = 0.18;
     private static final  int LIFT_UP_POSITION = 610;
-    private static final double BACK_ARM_SET_POSITION = 0.82;
+    private static final double BACK_ARM_SET_POSITION = 0.84;
     private static final double SLIDE_DOWN_POWER = -0.6;
     private static final double FRAME_HOLD_POSITION = 0;
     private static final double FRAME_INITIAL_POSITION = 0.57;
@@ -74,7 +79,7 @@ public class SingleStickWithArm extends LinearOpMode {
     private long lastLeftBumperPressTime = 0;
     private long lastRightBumperPressTime = 0;
 
-    private final double defaultServoPosition = 0.08;
+    private final double defaultServoPosition = 0.18;
     private final double defaultGrapServoPosition = 0.0;
     private final int targetMotorPosition = 387;
     private final int defaultMotorPosition = 0;
@@ -87,6 +92,9 @@ public class SingleStickWithArm extends LinearOpMode {
     private boolean isForwardSlideExtended = false;
     private boolean isDpadLeftUsed = false;
     private boolean isDpadRightUsed = false;
+
+    private int rightBumperPressCount = 0; // Counter for right bumper presses
+    private double driveSpeedMultiplier = 1.0; // Multiplier for drive speed
 
 
     @Override
@@ -188,10 +196,10 @@ public class SingleStickWithArm extends LinearOpMode {
         double rotY = x * Math.sin(-Math.toRadians(robotHeading)) + y * Math.cos(-Math.toRadians(robotHeading));
         double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
 
-        leftFrontDrive.setPower((rotY + rotX + rx) / denominator);
-        rightFrontDrive.setPower((rotY - rotX - rx) / denominator);
-        leftBackDrive.setPower((rotY - rotX + rx) / denominator);
-        rightBackDrive.setPower((rotY + rotX - rx) / denominator);
+        leftFrontDrive.setPower(((rotY + rotX + rx) / denominator) * driveSpeedMultiplier);
+        rightFrontDrive.setPower(((rotY - rotX - rx) / denominator) * driveSpeedMultiplier);
+        leftBackDrive.setPower(((rotY - rotX + rx) / denominator) * driveSpeedMultiplier);
+        rightBackDrive.setPower(((rotY + rotX - rx) / denominator) * driveSpeedMultiplier);
     }
 
     private void checkReset() {
@@ -207,11 +215,11 @@ public class SingleStickWithArm extends LinearOpMode {
         clawPosition = 0.0;
         backgrap.setPosition(clawPosition);
         isForwardClawOpen = false;
-        forward_claw.setPosition(0.8);
+        forward_claw.setPosition(0.88);
         isClawHengOpen = true;
         claw_heng.setPosition(0.55);
         armForwardPosition = true;
-        arm_forward.setPosition(0.8);
+        arm_forward.setPosition(0.77);
         frameCurrentPosition = FRAME_INITIAL_POSITION;
         frame.setPosition(FRAME_INITIAL_POSITION);
         slideState = SlideState.IDLE;
@@ -227,6 +235,8 @@ public class SingleStickWithArm extends LinearOpMode {
         isDpadRightUsed = false;
         recordedCatchPose = null;
         recordedChamberPose = null;
+        rightBumperPressCount = 0; // Reset speed control counter
+        driveSpeedMultiplier = 1.0; // Reset speed multiplier to default
     }
 
     private void initializeHardware() {
@@ -286,7 +296,7 @@ public class SingleStickWithArm extends LinearOpMode {
         frame.setPosition(FRAME_INITIAL_POSITION);
         backgrap.setPosition(clawPosition);
         claw_heng.setPosition(0.55);
-        forward_claw.setPosition(0.8);
+        forward_claw.setPosition(0.88);
         backArmServo.setPosition(defaultServoPosition);
         backgrapServo.setPosition(defaultGrapServoPosition);
     }
@@ -301,7 +311,7 @@ public class SingleStickWithArm extends LinearOpMode {
     }
 
     private void setInitialServoPositions() {
-        forward_slide.setPosition(0.55);
+        forward_slide.setPosition(0);
         forward_slide_2.setPosition(0);
         arm_forward.setPosition(0.8);
         claw_shu.setPosition(CLAW_SHU_INITIAL_POSITION);
@@ -321,9 +331,9 @@ public class SingleStickWithArm extends LinearOpMode {
         ) {
             lastLeftBumperPressTime = System.currentTimeMillis();
             if (!isForwardSlideExtended) {
-                forward_slide.setPosition(0);
-                forward_slide_2.setPosition(0.55);
-                arm_forward.setPosition(0.4);
+                forward_slide.setPosition(0.9);
+                forward_slide_2.setPosition(0);
+                arm_forward.setPosition(0.3);
                 claw_shu.setPosition(CLAW_SHU_ROTATE_POSITION);
                 telemetry.addLine("--- Left Bumper Pressed - Extend ---");
                 telemetry.addData("Arm Forward Position (Left Bumper Extend)", arm_forward.getPosition());
@@ -332,9 +342,9 @@ public class SingleStickWithArm extends LinearOpMode {
             } else {
                 forward_claw.setPosition(0);
                 sleep(250);
-                forward_slide.setPosition(0.55);
+                forward_slide.setPosition(0);
                 forward_slide_2.setPosition(0);
-                arm_forward.setPosition(0.8);
+                arm_forward.setPosition(0.77);
                 claw_shu.setPosition(CLAW_SHU_INITIAL_POSITION);
                 claw_heng.setPosition(0.55);
                 telemetry.addLine("--- Left Bumper Pressed - Retract ---");
@@ -347,17 +357,17 @@ public class SingleStickWithArm extends LinearOpMode {
 
         if (gamepad1.circle && debounce(lastCircleButtonPressTime)) {
             lastCircleButtonPressTime = System.currentTimeMillis();
-            forward_claw.setPosition(isForwardClawOpen ? 0.5 : 0.8);
+            forward_claw.setPosition(isForwardClawOpen ? 0.5 : 0.88);
             isForwardClawOpen = !isForwardClawOpen;
         }
         if (gamepad1.cross && debounce(lastCrossButtonPressTime)) {
             lastCrossButtonPressTime = System.currentTimeMillis();
             if (armForwardPosition) {
-                arm_forward.setPosition(0.15);
+                arm_forward.setPosition(0.18);
                 armForwardPosition = false;
                 telemetry.addLine("--- Cross Button Pressed (Position 0.15) ---");
             } else {
-                arm_forward.setPosition(0.4);
+                arm_forward.setPosition(0.3);
                 armForwardPosition = true;
                 telemetry.addLine("--- Cross Button Pressed (Position 0.4) ---");
             }
@@ -371,6 +381,64 @@ public class SingleStickWithArm extends LinearOpMode {
             lastTriangleButtonPressTime = System.currentTimeMillis();
             claw_heng.setPosition(isClawHengOpen ? 0.07 : 0.55);
             isClawHengOpen = !isClawHengOpen;
+        }
+
+        if (gamepad1.right_bumper && debounce(lastRightBumperPressTime)) {
+            lastRightBumperPressTime = System.currentTimeMillis();
+            rightBumperPressCount++;
+            if (rightBumperPressCount % 2 != 0) {
+                driveSpeedMultiplier = 0.8;
+                telemetry.addLine("--- Right Bumper Pressed - Speed Reduced to 0.5 ---");
+            } else {
+                driveSpeedMultiplier = 1.0;
+                telemetry.addLine("--- Right Bumper Pressed - Speed Reset to 1.0 ---");
+            }
+            telemetry.addData("Drive Speed Multiplier", driveSpeedMultiplier);
+            telemetry.update();
+
+            armHangingState = !armHangingState;
+
+            setMotorBrakeMode(false);
+
+            double hangingMotorPower = 1.0;
+            if (armHangingState) {
+                Left_Hanging_Motor.setTargetPosition(targetHangingMotorPosition);
+                Right_Hanging_Motor.setTargetPosition(targetHangingMotorPosition);
+                Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                Left_Hanging_Motor.setPower(1);
+                Right_Hanging_Motor.setPower(1);
+                sleep(200);
+                bigArmMotor.setTargetPosition(targetMotorPosition);
+                double targetServoPosition = 0.84;
+                backArmServo.setPosition(targetServoPosition);
+
+                bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                double targetMotorPower = 0.7;
+                bigArmMotor.setPower(targetMotorPower);
+
+
+            } else {
+                backArmServo.setPosition(defaultServoPosition);
+                sleep(100);
+                bigArmMotor.setTargetPosition(defaultMotorPosition);
+                Left_Hanging_Motor.setTargetPosition(defaultHangingMotorPosition);
+                Right_Hanging_Motor.setTargetPosition(defaultHangingMotorPosition);
+                claw_shu.setPosition(0.32);
+
+                bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+
+                double defaultMotorPower = 0.35;
+                bigArmMotor.setPower(defaultMotorPower);
+                Left_Hanging_Motor.setPower(1);
+                Right_Hanging_Motor.setPower(1);
+            }
+
+            if (opModeIsActive()) {
+                setMotorBrakeMode(true);
+            }
         }
     }
 
@@ -413,7 +481,6 @@ public class SingleStickWithArm extends LinearOpMode {
                 armHangingState = !armHangingState;
 
                 setMotorBrakeMode(false);
-                arm_forward.setPosition(1);
 
                 double hangingMotorPower = 1.0;
                 if (armHangingState) {
@@ -421,11 +488,11 @@ public class SingleStickWithArm extends LinearOpMode {
                     Right_Hanging_Motor.setTargetPosition(targetHangingMotorPosition);
                     Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                     Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
-                    Left_Hanging_Motor.setPower(hangingMotorPower);
-                    Right_Hanging_Motor.setPower(hangingMotorPower);
-                    sleep(250);
+                    Left_Hanging_Motor.setPower(1);
+                    Right_Hanging_Motor.setPower(1);
+                    sleep(200);
                     bigArmMotor.setTargetPosition(targetMotorPosition);
-                    double targetServoPosition = 0.84;
+                    double targetServoPosition = 0.87;
                     backArmServo.setPosition(targetServoPosition);
 
                     bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -435,9 +502,11 @@ public class SingleStickWithArm extends LinearOpMode {
 
                 } else {
                     backArmServo.setPosition(defaultServoPosition);
+                    sleep(100);
                     bigArmMotor.setTargetPosition(defaultMotorPosition);
                     Left_Hanging_Motor.setTargetPosition(defaultHangingMotorPosition);
                     Right_Hanging_Motor.setTargetPosition(defaultHangingMotorPosition);
+                    claw_shu.setPosition(0.32);
 
                     bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
                     Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -445,12 +514,8 @@ public class SingleStickWithArm extends LinearOpMode {
 
                     double defaultMotorPower = 0.35;
                     bigArmMotor.setPower(defaultMotorPower);
-                    Left_Hanging_Motor.setPower(hangingMotorPower);
-                    Right_Hanging_Motor.setPower(hangingMotorPower);
-
-                    while (opModeIsActive() && (bigArmMotor.isBusy() || Left_Hanging_Motor.isBusy() || Right_Hanging_Motor.isBusy())) {
-                        idle();
-                    }
+                    Left_Hanging_Motor.setPower(1);
+                    Right_Hanging_Motor.setPower(1);
                 }
 
                 if (opModeIsActive()) {
@@ -486,17 +551,17 @@ public class SingleStickWithArm extends LinearOpMode {
                         recordedCatchPose.position.y - 0
                 );
 
-
-                drive.actionBuilder(drive.pose)
-                        //初次抓快构建三次样条曲线之前复位执行机构
-                        .stopAndAdd(new ChamberDrive5Park.ArmMotorAction((DcMotorEx) bigArmMotor,true, 0))
-                        .stopAndAdd(new ChamberDrive5Park.ServoAction(backArmServo,BACK_ARM_RESET_POSITION))
-                        .stopAndAdd(new ChamberDrive5Park.MotorAction((DcMotorEx) Left_Hanging_Motor,(DcMotorEx) Right_Hanging_Motor,0))
-                        .stopAndAdd(new ChamberDrive5Park.ServoAction(backgrap,0))
-                        .splineToSplineHeading(recordedCatchPose, 0)
-                        .waitSeconds(0.2)
-                        .stopAndAdd(new ChamberDrive5Park.ServoAction(backgrap,0.6))
-                        .build();
+                Actions.runBlocking(
+                        drive.actionBuilder(drive.pose)
+                                //初次抓快构建三次样条曲线之前复位执行机构
+                                .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, true, 0))
+                                .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_RESET_POSITION))
+                                .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, 0))
+                                .stopAndAdd(new ServoAction(backgrap, 0))
+                                .splineToSplineHeading(recordedCatchPose, 0)
+                                .waitSeconds(0.2)
+                                .stopAndAdd(new ServoAction(backgrap, 0.6))
+                                .build());
 
                 int numberOfChamberPoints = 13;
                 double yIncrement = 5 * 0.39370;
@@ -506,30 +571,32 @@ public class SingleStickWithArm extends LinearOpMode {
                             current_chamber_pose.position.x - 0,
                             current_chamber_pose.position.y + 5 * 0.39370
                     );
-                    drive.actionBuilder(drive.pose)
-                            //在挂块之前伸出大臂，抬高滑轨，张开后爪
-                            .stopAndAdd(new ChamberDrive5Park.MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor,LIFT_UP_POSITION))
-                            .waitSeconds(0.1)
-                            .stopAndAdd(new ChamberDrive5Park.ServoAction(backArmServo,BACK_ARM_SET_POSITION))
-                            .waitSeconds(0.1)
-                            .stopAndAdd(new ChamberDrive5Park.ArmMotorAction((DcMotorEx) bigArmMotor,false, targetMotorPosition))
-                            .splineToConstantHeading(ChamberPoseInConstantHeading, 0)//挂杆位置
-                            .waitSeconds(0.1)
-                            .stopAndAdd(new ChamberDrive5Park.ServoAction(backgrap,0))//打开后爪
-                            .waitSeconds(0.1)
-                            //在抓块之前复位
-                            .stopAndAdd(new ChamberDrive5Park.ArmMotorAction((DcMotorEx) bigArmMotor,true, 0))
-                            .stopAndAdd(new ChamberDrive5Park.ServoAction(backArmServo,BACK_ARM_RESET_POSITION))
-                            .stopAndAdd(new ChamberDrive5Park.MotorAction((DcMotorEx) Left_Hanging_Motor,(DcMotorEx) Right_Hanging_Motor,0))
-                            .splineToConstantHeading(CatchPoseInConstantHeading, 0)
-                            .waitSeconds(0.1)
-                            .stopAndAdd(new ChamberDrive5Park.ServoAction(backgrap,0.6))
-                            .build();
+                    Actions.runBlocking(
+                            drive.actionBuilder(drive.pose)
+                                    .setTangent(Math.PI)
+                                    //在挂块之前伸出大臂，抬高滑轨，张开后爪
+                                    .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, LIFT_UP_POSITION))
+                                    .waitSeconds(0.1)
+                                    .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_SET_POSITION))
+                                    .waitSeconds(0.1)
+                                    .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, false, targetMotorPosition))
+                                    .splineToConstantHeading(ChamberPoseInConstantHeading, Math.PI)//挂杆位置
+                                    .waitSeconds(0.1)
+                                    .stopAndAdd(new ServoAction(backgrap, 0))//打开后爪
+                                    .waitSeconds(0.1)
+                                    .setTangent(0)
+                                    //在抓块之前复位
+                                    .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, true, 0))
+                                    .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_RESET_POSITION))
+                                    .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, 0))
+                                    .splineToConstantHeading(CatchPoseInConstantHeading, 0)
+                                    .waitSeconds(0.1)
+                                    .stopAndAdd(new ServoAction(backgrap, 0.6))
+                                    .build());
 
 
                     current_chamber_pose = new Pose2d(current_chamber_pose.position.x, current_chamber_pose.position.y + 5 * 0.39370 + yIncrement, current_chamber_pose.heading.toDouble());
                 }
-
 
 
                 telemetry.addData("操作", "Chamber Auto Drive 完成");
@@ -655,6 +722,7 @@ public class SingleStickWithArm extends LinearOpMode {
         // 添加 catch pose 和 chamber pose 的 telemetry 输出
         telemetry.addData("Catch Pose", recordedCatchPose != null ? recordedCatchPose.toString() : "null");
         telemetry.addData("Chamber Pose", recordedChamberPose != null ? recordedChamberPose.toString() : "null");
+        telemetry.addData("Drive Speed Multiplier", driveSpeedMultiplier); // Show speed multiplier in telemetry
 
         telemetry.update();
     }
@@ -664,5 +732,82 @@ public class SingleStickWithArm extends LinearOpMode {
         Left_Hanging_Motor.setZeroPowerBehavior(behavior);
         Right_Hanging_Motor.setZeroPowerBehavior(behavior);
         motorsInBrake = brake;
+    }
+    public class SlideServoAction implements Action{
+        Servo S1 = null;
+        Servo S2 = null;
+        public SlideServoAction(Servo s1,Servo s2){
+            this.S1 = s1;
+            this.S2 = s2;
+        }
+        @Override
+        public boolean run(@NonNull TelemetryPacket telemetryPacket) {
+            if(S1.getPosition() <= 0.01&& S2.getPosition()>=0.54){
+                S1.setPosition(0.55);
+                S2.setPosition(0.0);
+                return false;
+            }
+            S1.setPosition(0.0);
+            S2.setPosition(0.55);
+            return false;
+        }
+    }
+    public static class ArmMotorAction implements Action{
+        DcMotorEx arm = null;
+        boolean IsSet = false;
+        int position = 0;
+        public ArmMotorAction(DcMotorEx M,boolean F, int p){
+            this.arm = M;
+            this.IsSet = F;
+            this.position = p;
+        }
+        @Override
+        public boolean run(@NonNull TelemetryPacket telemetryPacket){
+            arm.setTargetPosition(position);
+            arm.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            if(IsSet){
+                arm.setPower(0.5);
+                return false;
+            }
+            arm.setPower(0.7);
+            return false;
+        }
+    }
+    public static class MotorAction implements Action {
+        DcMotorEx Left_Hanging_Motor = null;
+        DcMotorEx Right_Hanging_Motor = null;
+        int position = 0;
+
+        public MotorAction(DcMotorEx M1,DcMotorEx M2,int p){
+            this.Left_Hanging_Motor = M1;
+            this.Right_Hanging_Motor = M2;
+            this.position = p;
+        }
+        @Override
+        public boolean run(@NonNull TelemetryPacket telemetryPacket) {
+            Left_Hanging_Motor.setTargetPosition(position);
+            Right_Hanging_Motor.setTargetPosition(position);
+            Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+            Left_Hanging_Motor.setPower(1);
+            Right_Hanging_Motor.setPower(1);
+            return false;
+        }
+    }
+    public static class ServoAction implements Action {
+        Servo FrontSlide = null;
+        double position = 0;
+        boolean hasInitialized = false;
+
+        public ServoAction(Servo s, double p) {
+            this.FrontSlide = s;
+            this.position = p;
+        }
+
+        @Override
+        public boolean run(@NonNull TelemetryPacket telemetryPacket) {
+            FrontSlide.setPosition(position);
+            return false;
+        }
     }
 }

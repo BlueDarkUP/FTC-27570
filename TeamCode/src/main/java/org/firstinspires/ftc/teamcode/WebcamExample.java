@@ -32,6 +32,7 @@ import org.openftc.easyopencv.OpenCvCameraRotation;
 import org.openftc.easyopencv.OpenCvInternalCamera;
 import org.openftc.easyopencv.OpenCvInternalCamera2;
 import org.openftc.easyopencv.OpenCvPipeline;
+import org.firstinspires.ftc.teamcode.TeleOp.GoBildaPinpointDriver;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,16 +52,13 @@ public class WebcamExample extends LinearOpMode {
 
     private static final double PIXELS_TO_CM_RATIO = 0.021875;
     private static final double CLAW_OFFSET_FROM_CAMERA_CM = 0;
-    private static final String ALLIANCE_COLOR = "red";
+    private static String ALLIANCE_COLOR = "yellow"; // Changed to static String, not final
     private static final int MIN_REGION_WIDTH = 10;
     private static final int MIN_REGION_HEIGHT = 10;
     private static final double CLAW_CENTER_X_CM = -0.5;
     private static final double CLAW_CENTER_Y_CM = 4.64;
     private static final double SERVO_CENTER_POSITION_HENG = ServoPositions.CLAW_HENG_DEFAULT;
-    private static final double ANGLE_OFFSET_HENG = 0;
-    private static final double DIRECTION_MULTIPLIER_HENG = 1.0;
     private static final double CLAW_HORIZONTAL_ERROR_CM = -5.7;
-    private static final double SERVO_ANGLE_COEFFICIENT = 0.006; // 关键修改：改为正值 0.006
 
     private static final double SINGLE_SIDE_MAX_SIZE_CM = 404.5714285714286;
     private static final double DOUBLE_SIDE_MAX_SIZE_CM = 405.6772618921679;
@@ -82,11 +80,10 @@ public class WebcamExample extends LinearOpMode {
         static final double ARM_FORWARD_DEFAULT = 0.65;
         static final double CLAW_SHU_DEFAULT = 0.32;
         static final double CLAW_HENG_DEFAULT = 0.54;
-        static final double FORWARD_SLIDE_DEFAULT = 0;
+        static final double FORWARD_SLIDE_DEFAULT = 0.9;
         static final double FORWARD_SLIDE_2_DEFAULT = 0.37;
         static final double ARM_FORWARD_OVERRIDE = 0.4;
-        static final double CLAW_SHU_OVERRIDE = 1.0;
-        static final double FORWARD_SLIDE_OVERRIDE = 0.55;
+        static final double FORWARD_SLIDE_OVERRIDE = 0.9;
         static final double FORWARD_CLAW_DEFAULT = 0.85;
         static final double FORWARD_CLAW_GRAB = 0.0;
     }
@@ -275,8 +272,13 @@ public class WebcamExample extends LinearOpMode {
 
     private void handleGamepadInput() {
         if (gamepad1.circle && currentAutoState == AutoState.IDLE) {
+            ALLIANCE_COLOR = "blue"; // Set alliance color to blue if gamepad1.circle is pressed
             currentAutoState = AutoState.APPROACHING; // 按下圆圈按钮开始自动流程
-        } else if (currentAutoState == AutoState.IDLE) {
+        } else if (gamepad2.circle && currentAutoState == AutoState.IDLE) { // Added gamepad2.circle check
+            ALLIANCE_COLOR = "red"; // Set alliance color to red if gamepad2.circle is pressed
+            currentAutoState = AutoState.APPROACHING; // 按下圆圈按钮开始自动流程
+        }
+        else if (currentAutoState == AutoState.IDLE) {
             driveRobotManually();
         }
     }
@@ -350,6 +352,8 @@ public class WebcamExample extends LinearOpMode {
             double moveForwardCm = colorDetectionPipeline.getMoveForward();
             double moveSidewaysCm = colorDetectionPipeline.getMoveSideways();
             double servoPositionOffset = colorDetectionPipeline.getServoPositionOffset();
+            double targetHengServoPosition = SERVO_CENTER_POSITION_HENG + servoPositionOffset;
+            targetHengServoPosition = Range.clip(targetHengServoPosition, 0, 1);
 
             DetectedCube closestCube;
             synchronized (colorDetectionPipeline) {
@@ -362,6 +366,9 @@ public class WebcamExample extends LinearOpMode {
                             .splineToConstantHeading(
                                     new Vector2d(drive.pose.position.x + moveForwardCm * 0.39370, drive.pose.position.y - moveSidewaysCm * 0.39370), 0
                             )
+                            .stopAndAdd(new SingleStickWithArm.ServoAction(armForwardServo, 0.4))
+                            .stopAndAdd(new SingleStickWithArm.ServoAction(clawHengServo, targetHengServoPosition))
+                            .stopAndAdd(new SingleStickWithArm.ServoAction(clawShuServo, 1))
                             .build();
 
                     Actions.runBlocking(visionBasedMovement);
@@ -371,21 +378,10 @@ public class WebcamExample extends LinearOpMode {
                     telemetry.addLine("异常信息: " + e.getMessage());
                 }
 
-                double targetHengServoPosition = SERVO_CENTER_POSITION_HENG + servoPositionOffset;
-                targetHengServoPosition = Range.clip(targetHengServoPosition, 0, 1);
-
-                armForwardServo.setPosition(ServoPositions.ARM_FORWARD_OVERRIDE);
-                clawHengServo.setPosition(targetHengServoPosition);
-                forwardSlideServo.setPosition(ServoPositions.FORWARD_SLIDE_OVERRIDE);
-                forwardSlide2Servo.setPosition(ServoPositions.FORWARD_SLIDE_2_DEFAULT);
-                clawShuServo.setPosition(1);
-
-                sleep(300);
-                armForwardServo.setPosition(0.15);
-                sleep(300);
+                armForwardServo.setPosition(0.16);
+                sleep(200);
                 forwardClawServo.setPosition(ServoPositions.FORWARD_CLAW_GRAB);
-                boolean isClawDown = true;
-                sleep(300);
+                sleep(400);
                 armForwardServo.setPosition(0.4);
                 sleep(1000);
                 armForwardServo.setPosition(ServoPositions.ARM_FORWARD_DEFAULT);
@@ -499,6 +495,18 @@ public class WebcamExample extends LinearOpMode {
 
         telemetry.update();
     }
+
+    // Moved wrapAroundServoValue method to the outer class WebcamExample
+    public static double wrapAroundServoValue(double value) {
+        while (value > 1) {
+            value -= 1;
+        }
+        while (value < 0) {
+            value += 1;
+        }
+        return value;
+    }
+
 
     class ColorDetectionPipelineImpl extends OpenCvPipeline {
         private final Mat hsvImage = new Mat();
@@ -756,7 +764,7 @@ public class WebcamExample extends LinearOpMode {
             for (DetectedCube cube : currentDetectedCubes) {
                 if (cube.color.equals("yellow")) {
                     validCubesNeutral.add(cube);
-                } else if (cube.color.equalsIgnoreCase(ALLIANCE_COLOR)) {
+                } else if (cube.color.equalsIgnoreCase(WebcamExample.ALLIANCE_COLOR)) { // Use WebcamExample.ALLIANCE_COLOR here
                     validCubesAlliance.add(cube);
                 }
             }
@@ -775,8 +783,16 @@ public class WebcamExample extends LinearOpMode {
                 moveForward = closestCube.centerYCm - clawCenterYCm;
                 moveSideways = closestCube.centerXCm - clawCenterXCm - CLAW_HORIZONTAL_ERROR_CM;
 
-                double clawAngle_deviation = closestCube.angleDegrees + 90; // 角度偏差计算公式 (保持不变)
-                servoPositionOffset = SERVO_ANGLE_COEFFICIENT * DIRECTION_MULTIPLIER_HENG * clawAngle_deviation + ANGLE_OFFSET_HENG;
+                double clawAngleDegrees = closestCube.angleDegrees; // 获取检测到的方块角度
+
+                // 新的舵机数值计算算法
+                double angleDeviation = clawAngleDegrees + 90; // 角度偏差
+                double servoValueChange = angleDeviation / 180.0; // 舵机数值变化量
+                double servoValue = 0.54 - servoValueChange; // 计算舵机数值
+
+                // 使用 wrap-around 算法, now calling the method in the outer class
+                servoValue = WebcamExample.wrapAroundServoValue(servoValue);
+                servoPositionOffset = servoValue - SERVO_CENTER_POSITION_HENG; // 计算相对于中心位置的偏移量
 
 
                 Rect bb = closestCube.boundingBox;

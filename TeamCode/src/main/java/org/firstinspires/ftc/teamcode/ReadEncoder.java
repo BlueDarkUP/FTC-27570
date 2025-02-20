@@ -67,10 +67,10 @@ public class ReadEncoder extends LinearOpMode {
         telemetry.update();
 
         // 获取新的电机对象，使用你提供的硬件名称
-        leftFrontDrive  = hardwareMap.get(DcMotor.class, "big_arm");
-        rightFrontDrive = hardwareMap.get(DcMotor.class, "big_arm");
-        leftBackDrive   = hardwareMap.get(DcMotor.class, "LeftHangingMotor");
-        rightBackDrive  = hardwareMap.get(DcMotor.class, "RightHangingMotor");
+        leftFrontDrive  = hardwareMap.get(DcMotor.class, "LeftFrontMotor");
+        rightFrontDrive = hardwareMap.get(DcMotor.class, "RightFrontMotor");
+        leftBackDrive   = hardwareMap.get(DcMotor.class, "LeftBehindMotor");
+        rightBackDrive  = hardwareMap.get(DcMotor.class, "RightBehindMotor");
 
 
         // 设置所有驱动电机的方向，根据你的机器人实际情况调整
