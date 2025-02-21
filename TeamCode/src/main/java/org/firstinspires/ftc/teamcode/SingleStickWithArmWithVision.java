@@ -1,4 +1,5 @@
 package org.firstinspires.ftc.teamcode;
+
 import androidx.annotation.NonNull;
 
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
@@ -12,14 +13,35 @@ import com.qualcomm.robotcore.hardware.DcMotor;
 import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
+import com.qualcomm.robotcore.util.Range;
 
 import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 import org.firstinspires.ftc.robotcore.external.navigation.AngleUnit;
 import org.firstinspires.ftc.robotcore.external.navigation.Pose2D;
 import org.firstinspires.ftc.teamcode.TeleOp.GoBildaPinpointDriver;
+import org.opencv.core.Core;
+import org.opencv.core.CvType;
+import org.opencv.core.Mat;
+import org.opencv.core.MatOfPoint;
+import org.opencv.core.MatOfPoint2f;
+import org.opencv.core.Point;
+import org.opencv.core.Rect;
+import org.opencv.core.RotatedRect;
+import org.opencv.core.Scalar;
+import org.opencv.core.Size;
+import org.opencv.imgproc.Imgproc;
+import org.openftc.easyopencv.OpenCvCamera;
+import org.openftc.easyopencv.OpenCvCameraFactory;
+import org.openftc.easyopencv.OpenCvCameraRotation;
+import org.openftc.easyopencv.OpenCvPipeline;
+import org.openftc.easyopencv.OpenCvWebcam;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 
-@TeleOp(name = "比赛用手动程序-大臂-视觉", group = "Competition")
+@TeleOp(name = "比赛用手动程序-双手柄-视觉", group = "Competition")
 public class SingleStickWithArmWithVision extends LinearOpMode {
     private MecanumDrive drive;
     private static final double CLAW_INCREMENT = 0.55;
@@ -43,8 +65,15 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private Pose2d recordedChamberPose = null;
 
     private enum SlideState {IDLE, MOVING_TO_POSITION, MANUAL_DOWN, HANGING_PAUSE}
+    private enum AutoState {
+        IDLE,
+        APPROACHING_STEP_1,
+        APPROACHING_STEP_2,
+        GRABBING
+    }
 
     private SlideState slideState = SlideState.IDLE;
+    private AutoState currentAutoState = AutoState.IDLE;
     private Servo backArmServo;
     private Servo backgrapServo;
     private DcMotor bigArmMotor;
@@ -62,6 +91,50 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private double clawHengCurrentPos = 0.0;
     private double frameCurrentPosition = FRAME_INITIAL_POSITION;
     private double initialHeading = 0;
+    private boolean processFrameFlag = false;
+    private boolean isApproached = false;
+    private static String ALLIANCE_COLOR = "yellow";
+
+    private static final double PIXELS_TO_CM_RATIO = 0.021875;
+    private static final double CLAW_OFFSET_FROM_CAMERA_CM = 0;
+    private static final int MIN_REGION_WIDTH = 10;
+    private static final int MIN_REGION_HEIGHT = 10;
+    private static final double CLAW_CENTER_X_CM = -0.5;
+    private static final double CLAW_CENTER_Y_CM = 4.64;
+    private static final double SERVO_CENTER_POSITION_HENG = ServoPositions.CLAW_HENG_DEFAULT;
+    private static final double CLAW_HORIZONTAL_ERROR_CM = -5.7;
+
+    private static final double SINGLE_SIDE_MAX_SIZE_CM = 404.5714285714286;
+    private static final double DOUBLE_SIDE_MAX_SIZE_CM = 405.6772618921679;
+    private static final int SINGLE_SIDE_MAX_SIZE = (int) (SINGLE_SIDE_MAX_SIZE_CM / PIXELS_TO_CM_RATIO);
+    private static final int DOUBLE_SIDE_MAX_SIZE = (int) (DOUBLE_SIDE_MAX_SIZE_CM / PIXELS_TO_CM_RATIO);
+    private static final Scalar RED_LOWER_1 = new Scalar(170, 100, 100);
+    private static final Scalar RED_UPPER_1 = new Scalar(180, 255, 255);
+    private static final Scalar RED_LOWER_2 = new Scalar(0, 100, 100);
+    private static final Scalar RED_UPPER_2 = new Scalar(10, 255, 255);
+    private static final Scalar BLUE_LOWER = new Scalar(100, 125, 220);
+    private static final Scalar BLUE_UPPER = new Scalar(130, 255, 255);
+    private static final Scalar YELLOW_LOWER = new Scalar(20, 145, 250);
+    private static final Scalar YELLOW_UPPER = new Scalar(40, 255, 255);
+
+    private static class ServoPositions {
+        static final double ARM_FORWARD_DEFAULT = 0.65;
+        static final double CLAW_SHU_DEFAULT = 0.32;
+        static final double CLAW_HENG_DEFAULT = 0.54;
+        static final double FORWARD_SLIDE_DEFAULT = 0.9;
+        static final double FORWARD_SLIDE_2_DEFAULT = 0.37;
+        static final double ARM_FORWARD_OVERRIDE = 0.4;
+        static final double FORWARD_SLIDE_OVERRIDE = 0.9;
+        static final double FORWARD_CLAW_DEFAULT = 0.9;
+        static final double FORWARD_CLAW_GRAB = 0.0;
+    }
+
+    private OpenCvWebcam camera;
+    private ColorDetectionPipelineImpl colorDetectionPipeline;
+    private final int cameraWidth = 1280;
+    private final int cameraHeight = 720;
+    private volatile boolean isCameraInitialized = false;
+
 
     private DcMotor leftFrontDrive, rightFrontDrive, leftBackDrive, rightBackDrive, Left_Hanging_Motor, Right_Hanging_Motor;
     private Servo backgrap, forward_slide, arm_forward, claw_shu, forward_claw, claw_heng, frame, forward_slide_2;
@@ -95,30 +168,22 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private boolean isDpadRightUsed = false;
     private WebcamName webcamName;
 
-    private int rightBumperPressCount = 0; // Counter for right bumper presses
-    private double driveSpeedMultiplier = 1.0; // Multiplier for drive speed
-
+    private int rightBumperPressCount = 0;
+    private double driveSpeedMultiplier = 1.0;
 
     @Override
     public void runOpMode() {
         initializeHardware();
         initializeServos();
         initializeOdometry();
+        initializeVision();
         setInitialServoPositions();
-        drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
-        webcamName = hardwareMap.get(WebcamName.class, "Webcam");
-        if (webcamName == null) {
-            telemetry.addData("摄像头错误", "找不到名为 'Webcam' 的摄像头硬件配置.");
-            telemetry.update();
-            return;
-        }
 
-        if (!VisionAPI.initialize(webcamName, telemetry)) { // Static initialization call
-            telemetry.addLine("VisionAPI 初始化失败，请检查配置。");
+        drive = new MecanumDrive(hardwareMap, new Pose2d(0, 0, 0));
+
+        if (!isCameraInitialized) {
+            telemetry.addLine("摄像头初始化失败，程序终止。");
             telemetry.update();
-            while (opModeInInit()) {
-                idle();
-            }
             return;
         }
 
@@ -128,9 +193,9 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         waitForStart();
 
         while (opModeIsActive()) {
+            drive.updatePoseEstimate();
             odo.update();
             Pose2D pose = odo.getPosition();
-            drive.updatePoseEstimate();
             double robotHeading = (pose.getHeading(AngleUnit.DEGREES) + 360) % 360;
 
             driveRobot(robotHeading);
@@ -140,19 +205,101 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             handleClawShuControl();
             handlePoseRecord();
             checkReset();
+            processAutoStateMachine();
             updateTelemetry(robotHeading);
+            sleep(50);
+        }
+        stopCamera();
+    }
+
+    private void initializeVision() {
+        telemetry.addLine("初始化摄像头...");
+        telemetry.update();
+        int cameraMonitorViewId = hardwareMap.appContext.getResources().getIdentifier("cameraMonitorViewId", "id", hardwareMap.appContext.getPackageName());
+        try {
+            webcamName = hardwareMap.get(WebcamName.class, "Webcam");
+            if (webcamName == null) {
+                telemetry.addData("摄像头错误", "找不到名为 'Webcam' 的摄像头硬件配置.");
+                telemetry.update();
+                isCameraInitialized = false;
+                return;
+            }
+            camera = OpenCvCameraFactory.getInstance().createWebcam(webcamName, cameraMonitorViewId);
+
+
+            if (camera == null) {
+                telemetry.addData("摄像头错误", "创建摄像头实例失败 (camera == null).");
+                telemetry.update();
+                isCameraInitialized = false;
+                return;
+            }
+
+            colorDetectionPipeline = new ColorDetectionPipelineImpl();
+            camera.setPipeline(colorDetectionPipeline);
+
+            telemetry.addLine("尝试打开摄像头设备异步...");
+            telemetry.update();
+
+            camera.openCameraDeviceAsync(new OpenCvCamera.AsyncCameraOpenListener() {
+                @Override
+                public void onOpened() {
+                    telemetry.addLine("摄像头设备已打开 (onOpened 回调).");
+                    telemetry.update();
+                    camera.startStreaming(cameraWidth, cameraHeight, OpenCvCameraRotation.UPRIGHT);
+                    isCameraInitialized = true;
+                    telemetry.addData("摄像头状态", "已打开并开始推流");
+                    telemetry.update();
+                }
+
+                @Override
+                public void onError(int errorCode) {
+                    telemetry.addData("摄像头错误", "打开摄像头设备失败 (onError 回调).");
+                    telemetry.addData("错误代码", errorCode);
+                    telemetry.update();
+                    isCameraInitialized = false;
+                }
+            });
+
+            telemetry.addLine("等待摄像头初始化完成...");
+            telemetry.update();
+            while (!isStarted() && !isCameraInitialized) {
+                sleep(100);
+            }
+
+            if (!isCameraInitialized) {
+                telemetry.addData("摄像头状态", "初始化超时或失败, OpMode 已停止.");
+                telemetry.update();
+                return;
+            }
+            telemetry.addLine("摄像头初始化完成");
+            telemetry.update();
+
+
+        } catch (Exception e) {
+            telemetry.addData("摄像头错误", "初始化异常: " + e.getMessage());
+            telemetry.update();
+            isCameraInitialized = false;
+        }
+    }
+    private void stopCamera() {
+        if (camera != null) {
+            camera.stopStreaming();
+            camera.closeCameraDevice();
+            telemetry.addLine("摄像头流已停止且设备已关闭");
+            telemetry.update();
         }
     }
 
+
     private void handlePoseRecord() {
-        if (gamepad1.dpad_left && debounce(lastDpadLeftPressTime) && !isDpadLeftUsed) {
+        if ((gamepad1.dpad_left || gamepad2.dpad_left) && debounce(lastDpadLeftPressTime) && !isDpadLeftUsed) {
             lastDpadLeftPressTime = System.currentTimeMillis();
             recordedCatchPose = drive.pose;
             telemetry.addData("操作", "机器人位姿已设置为 catch pose");
             isDpadLeftUsed = true;
         }
 
-        if (gamepad1.dpad_right && debounce(lastDpadRightPressTime) && !isDpadRightUsed) {
+        if ((gamepad1.dpad_right || gamepad2.dpad_right) && debounce(lastDpadRightPressTime) && !isDpadRightUsed) {
             lastDpadRightPressTime = System.currentTimeMillis();
             recordedChamberPose = drive.pose;
             telemetry.addData("操作", "已记录当前位姿为 chamber pose");
@@ -161,7 +308,8 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     }
 
     private void handleClawShuControl() {
-        double rightStickY = gamepad1.right_stick_y, rightStickX = gamepad1.right_stick_x;
+        double rightStickY = gamepad1.right_stick_y != 0 ? gamepad1.right_stick_y : gamepad2.right_stick_y;
+        double rightStickX = gamepad1.right_stick_x != 0 ? gamepad1.right_stick_x : gamepad2.right_stick_x;
 
         if (Math.abs(rightStickY) > 0.1) {
             clawShuCurrentPos = Math.max(0, Math.min(1, claw_shu.getPosition() - rightStickY * SERVO_SPEED_MULTIPLIER));
@@ -173,7 +321,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             claw_heng.setPosition(clawHengCurrentPos);
         }
 
-        if (gamepad1.right_stick_button && debounce(lastRightStickPressTime)) {
+        if ((gamepad1.right_stick_button || gamepad2.right_stick_button) && debounce(lastRightStickPressTime)) {
             lastRightStickPressTime = System.currentTimeMillis();
             resetIMU();
         }
@@ -208,7 +356,9 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     }
 
     private void driveRobot(double robotHeading) {
-        double y = gamepad1.left_stick_y, x = -gamepad1.left_stick_x, rx = gamepad1.right_trigger - gamepad1.left_trigger;
+        double y = gamepad1.left_stick_y != 0 ? gamepad1.left_stick_y : gamepad2.left_stick_y;
+        double x = - (gamepad1.left_stick_x != 0 ? gamepad1.left_stick_x : gamepad2.left_stick_x);
+        double rx = (gamepad1.right_trigger - gamepad1.left_trigger) != 0 ? (gamepad1.right_trigger - gamepad1.left_trigger) : (gamepad2.right_trigger - gamepad2.left_trigger);
         double rotX = x * Math.cos(-Math.toRadians(robotHeading)) - y * Math.sin(-Math.toRadians(robotHeading));
         double rotY = x * Math.sin(-Math.toRadians(robotHeading)) + y * Math.cos(-Math.toRadians(robotHeading));
         double denominator = Math.max(Math.abs(rotY) + Math.abs(rotX) + Math.abs(rx), 1);
@@ -220,7 +370,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     }
 
     private void checkReset() {
-        if (gamepad1.options && debounce(lastOptionButtonPressTime)) {
+        if ((gamepad1.options || gamepad2.options) && debounce(lastOptionButtonPressTime)) {
             lastOptionButtonPressTime = System.currentTimeMillis();
             resetAll();
         }
@@ -240,6 +390,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         frameCurrentPosition = FRAME_INITIAL_POSITION;
         frame.setPosition(FRAME_INITIAL_POSITION);
         slideState = SlideState.IDLE;
+        currentAutoState = AutoState.IDLE;
         resetIMU();
         clawShuCurrentPos = CLAW_SHU_INITIAL_POSITION;
         claw_shu.setPosition(clawShuCurrentPos);
@@ -252,8 +403,8 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         isDpadRightUsed = false;
         recordedCatchPose = null;
         recordedChamberPose = null;
-        rightBumperPressCount = 0; // Reset speed control counter
-        driveSpeedMultiplier = 1.0; // Reset speed multiplier to default
+        rightBumperPressCount = 0;
+        driveSpeedMultiplier = 1.0;
     }
 
     private void initializeHardware() {
@@ -335,7 +486,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     }
 
     private void controlClaw() {
-        if (gamepad1.square && debounce(lastSquareButtonPressTime)) {
+        if ((gamepad1.square || gamepad2.square) && debounce(lastSquareButtonPressTime)) {
             lastSquareButtonPressTime = System.currentTimeMillis();
             clawPosition = isClawOpen ? Math.max(0.0, clawPosition - CLAW_INCREMENT) : Math.min(1.0, clawPosition + CLAW_INCREMENT);
             backgrap.setPosition(clawPosition);
@@ -344,8 +495,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     }
 
     private void controlServos() {
-        if (gamepad1.left_bumper && debounce(lastLeftBumperPressTime)
-        ) {
+        if ((gamepad1.left_bumper || gamepad2.left_bumper) && debounce(lastLeftBumperPressTime)) {
             lastLeftBumperPressTime = System.currentTimeMillis();
             if (!isForwardSlideExtended) {
                 forward_slide.setPosition(0.9);
@@ -372,36 +522,24 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         }
 
 
-        if (gamepad1.circle && debounce(lastCircleButtonPressTime)) {
-            VisionAPI.ApproachData approachData = VisionAPI.getApproachData();
-            Vector2d targetPosition = new Vector2d(
-                    drive.pose.position.x + approachData.moveForwardcm * 0.39370,
-                    drive.pose.position.y - approachData.moveSidewaysCm * 0.39370
-            );
-            Action approachMovement = drive.actionBuilder(drive.pose)
-                    .splineToConstantHeading(targetPosition, 0)
-                    .build();
-            Actions.runBlocking(approachMovement);
-            VisionAPI.GrabData grabData = VisionAPI.getGrabData();
-            Action visionBasedMovement = drive.actionBuilder(drive.pose)
-                    .splineToConstantHeading(
-                            new Vector2d(drive.pose.position.x + grabData.moveSidewaysCm * 0.39370,
-                                    drive.pose.position.y - grabData.moveSidewaysCm * 0.39370), 0
-                    )
-                    .stopAndAdd(new SingleStickWithArm.ServoAction(arm_forward, 0.4))
-                    .stopAndAdd(new SingleStickWithArm.ServoAction(claw_heng, grabData.servoPosition))
-                    .stopAndAdd(new SingleStickWithArm.ServoAction(claw_shu, 1))
-                    .build();
-
-            Actions.runBlocking(visionBasedMovement);
+        if ((gamepad1.circle || gamepad2.circle) && debounce(lastCircleButtonPressTime)) {
+            lastCircleButtonPressTime = System.currentTimeMillis();
+            arm_forward.setPosition(0.65);
+            claw_shu.setPosition(0.32);
+            claw_heng.setPosition(0.54);
+            forward_slide.setPosition(0.9);
+            forward_claw.setPosition(0.9);
             sleep(100);
-            arm_forward.setPosition(0.16);
-            sleep(200);
-            forward_claw.setPosition(0);
+            if (gamepad1.circle) {
+                ALLIANCE_COLOR = "blue";
+            } else if (gamepad2.circle) {
+                ALLIANCE_COLOR = "red";
+            }
+            currentAutoState = AutoState.APPROACHING_STEP_1;
         }
 
 
-        if (gamepad1.right_bumper && debounce(lastRightBumperPressTime)) {
+        if ((gamepad1.right_bumper || gamepad2.right_bumper) && debounce(lastRightBumperPressTime)) {
             lastRightBumperPressTime = System.currentTimeMillis();
             rightBumperPressCount++;
             if (rightBumperPressCount % 2 != 0) {
@@ -491,10 +629,10 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
         }
 
-        if (gamepad1.y) {
+        if (gamepad1.y || gamepad2.y) {
             telemetry.addData("滑轨状态", "已复位到零点");
         } else if (slideState == SlideState.IDLE) {
-            if (gamepad1.right_bumper && debounce(lastRightBumperPressTime)) {
+            if ((gamepad1.right_bumper || gamepad2.right_bumper) && debounce(lastRightBumperPressTime)) {
                 lastRightBumperPressTime = System.currentTimeMillis();
                 armHangingState = !armHangingState;
 
@@ -542,17 +680,18 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             }
 
 
-            if (gamepad1.right_trigger > 0.1) {
+            if (gamepad1.right_trigger > 0.1 || gamepad2.right_trigger > 0.1) {
                 setMotorBrakeMode(false);
                 Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
                 Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER);
-                Left_Hanging_Motor.setPower(SLIDE_DOWN_POWER * gamepad1.right_trigger);
-                Right_Hanging_Motor.setPower(SLIDE_DOWN_POWER * gamepad1.right_trigger);
+                double triggerValue = Math.max(gamepad1.right_trigger, gamepad2.right_trigger);
+                Left_Hanging_Motor.setPower(SLIDE_DOWN_POWER * triggerValue);
+                Right_Hanging_Motor.setPower(SLIDE_DOWN_POWER * triggerValue);
                 slideState = SlideState.MANUAL_DOWN;
             }
 
 
-            if (gamepad1.dpad_up && debounce(lastDpadUpPressTime)) {
+            if ((gamepad1.dpad_up || gamepad2.dpad_up) && debounce(lastDpadUpPressTime)) {
                 lastDpadUpPressTime = System.currentTimeMillis();
                 telemetry.addData("操作", "执行 Chamber Auto Drive...");
                 telemetry.update();
@@ -571,7 +710,6 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
 
                 Actions.runBlocking(
                         drive.actionBuilder(drive.pose)
-                                //初次抓快构建三次样条曲线之前复位执行机构
                                 .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, true, 0))
                                 .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_RESET_POSITION))
                                 .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, 0))
@@ -592,18 +730,16 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
                     Actions.runBlocking(
                             drive.actionBuilder(drive.pose)
                                     .setTangent(Math.PI)
-                                    //在挂块之前伸出大臂，抬高滑轨，张开后爪
                                     .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, LIFT_UP_POSITION))
                                     .waitSeconds(0.1)
                                     .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_SET_POSITION))
                                     .waitSeconds(0.1)
                                     .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, false, targetMotorPosition))
-                                    .splineToConstantHeading(ChamberPoseInConstantHeading, Math.PI)//挂杆位置
+                                    .splineToConstantHeading(ChamberPoseInConstantHeading, Math.PI)
                                     .waitSeconds(0.1)
-                                    .stopAndAdd(new ServoAction(backgrap, 0))//打开后爪
+                                    .stopAndAdd(new ServoAction(backgrap, 0))
                                     .waitSeconds(0.1)
                                     .setTangent(0)
-                                    //在抓块之前复位
                                     .stopAndAdd(new ArmMotorAction((DcMotorEx) bigArmMotor, true, 0))
                                     .stopAndAdd(new ServoAction(backArmServo, BACK_ARM_RESET_POSITION))
                                     .stopAndAdd(new MotorAction((DcMotorEx) Left_Hanging_Motor, (DcMotorEx) Right_Hanging_Motor, 0))
@@ -653,7 +789,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
                 slideState = SlideState.MOVING_TO_POSITION;
             }
         } else if (slideState == SlideState.MANUAL_DOWN) {
-            if (!(gamepad1.right_trigger > 0.1)) {
+            if (!(gamepad1.right_trigger > 0.1 || gamepad2.right_trigger > 0.1)) {
                 Left_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Right_Hanging_Motor.setZeroPowerBehavior(DcMotor.ZeroPowerBehavior.BRAKE);
                 Left_Hanging_Motor.setPower(0);
@@ -698,6 +834,123 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         dpadLeftButtonPreviousState = gamepad1.dpad_left;
     }
 
+    private void processAutoStateMachine() {
+        if (currentAutoState == AutoState.APPROACHING_STEP_1) {
+            processFrameAndApproach(AutoState.APPROACHING_STEP_2);
+        } else if (currentAutoState == AutoState.APPROACHING_STEP_2) {
+            processFrameAndApproach(AutoState.GRABBING);
+        } else if (currentAutoState == AutoState.GRABBING) {
+            processFrameAndGrab();
+        }
+    }
+
+    private void processFrameAndApproach(AutoState nextState) {
+        if (!processFrameFlag) {
+            processFrameFlag = true;
+            List<DetectedCube> cubes;
+            synchronized (colorDetectionPipeline) {
+                cubes = colorDetectionPipeline.getDetectedCubes();
+            }
+            DetectedCube closestCube;
+            synchronized (colorDetectionPipeline) {
+                closestCube = colorDetectionPipeline.getClosestCube();
+            }
+
+            if (!cubes.isEmpty() && closestCube != null && !isApproached) {
+                isApproached = true;
+                telemetry.addLine("检测到方块，执行接近动作...");
+                telemetry.update();
+
+                try {
+                    Vector2d targetPosition = new Vector2d(
+                            drive.pose.position.x + closestCube.centerXCm * 0.39370,
+                            drive.pose.position.y - closestCube.centerYCm * 0.39370
+                    );
+                    Action approachMovement = drive.actionBuilder(drive.pose)
+                            .splineToConstantHeading(targetPosition, 0)
+                            .build();
+                    Actions.runBlocking(approachMovement);
+                    telemetry.addLine("Road Runner 接近动作完成.");
+                    currentAutoState = nextState;
+                    isApproached = false;
+                } catch (Exception e) {
+                    telemetry.addLine("*** Road Runner 接近动作报错 ***");
+                    telemetry.addLine("异常信息: " + e.getMessage());
+                    currentAutoState = AutoState.IDLE;
+                    isApproached = false;
+                }
+            }
+
+            else {
+                telemetry.addLine("未检测到方块或不满足接近条件，等待下一次检测。");
+                currentAutoState = AutoState.IDLE;
+                isApproached = false;
+            }
+            processFrameFlag = false;
+        }
+    }
+
+
+    private void processFrameAndGrab() {
+        if (!processFrameFlag) {
+            processFrameFlag = true;
+            List<DetectedCube> cubes;
+            synchronized (colorDetectionPipeline) {
+                cubes = colorDetectionPipeline.getDetectedCubes();
+            }
+            double moveForwardCm = colorDetectionPipeline.getMoveForward();
+            double moveSidewaysCm = colorDetectionPipeline.getMoveSideways();
+            double servoPositionOffset = colorDetectionPipeline.getServoPositionOffset();
+            double targetHengServoPosition = SERVO_CENTER_POSITION_HENG + servoPositionOffset;
+            targetHengServoPosition = Range.clip(targetHengServoPosition, 0, 1);
+
+            DetectedCube closestCube;
+            synchronized (colorDetectionPipeline) {
+                closestCube = colorDetectionPipeline.getClosestCube();
+            }
+
+            if (!cubes.isEmpty()) {
+                try {
+                    telemetry.addLine("准备设置 clawShuServo 为 1");
+                    telemetry.update();
+                    Action visionBasedMovement = drive.actionBuilder(drive.pose)
+                            .splineToConstantHeading(
+                                    new Vector2d(drive.pose.position.x + moveForwardCm * 0.39370, drive.pose.position.y - moveSidewaysCm * 0.39370), 0
+                            )
+                            .stopAndAdd(new ServoAction(claw_shu, 1))
+                            .waitSeconds(0.1)
+                            .stopAndAdd(new ServoAction(arm_forward, 0.4))
+                            .stopAndAdd(new ServoAction(claw_heng, targetHengServoPosition))
+                            .stopAndAdd(new ServoAction(forward_claw, 0.95))
+                            .build();
+
+                    Actions.runBlocking(visionBasedMovement);
+                    telemetry.addLine("Road Runner 抓取动作完成.");
+                    telemetry.addLine("clawShuServo 设置完成");
+                    telemetry.update();
+                } catch (Exception e) {
+                    telemetry.addLine("*** Road Runner 抓取动作报错 ***");
+                    telemetry.addLine("异常信息: " + e.getMessage());
+                }
+                sleep(100);
+                arm_forward.setPosition(0.16);
+                sleep(200);
+                forward_claw.setPosition(0);
+                sleep(400);
+                arm_forward.setPosition(0.4);
+                currentAutoState = AutoState.IDLE;
+            } else {
+                telemetry.addLine("抓取阶段未检测到方块，回到IDLE状态");
+                currentAutoState = AutoState.IDLE;
+            }
+
+
+            telemetry.update();
+            processFrameFlag = false;
+        }
+    }
+
+
     private boolean debounce(long lastPressTime) {
         return (System.currentTimeMillis() - lastPressTime) > DEBOUNCE_DELAY;
     }
@@ -711,7 +964,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         telemetry.addData("后爪", "状态: %s, 位置:%.2f", isClawOpen ? "打开" : "关闭", clawPosition);
         telemetry.addData("框状态", "位置: %.2f", frame.getPosition());
         telemetry.addData("框舵机目标位置:", frameCurrentPosition);
-        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive");
+        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive, Circle = Vision Auto Grab");
         telemetry.addData("提示", "按下圆形按键控制前爪, 右摇杆控制前爪自由度,  三角键：前爪横向自由度， 交叉键：小臂, 右肩键：前滑轨伸缩, 右扳机：滑轨下降");
         telemetry.addData("电机 big_arm", "位置: %d, 目标: %d, 忙碌: %b, 模式: %s, Brake: %b, Power: %.2f",
                 bigArmMotor.getCurrentPosition(),
@@ -736,11 +989,66 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         telemetry.addData("舵机 backgrap", "%.2f", backgrapServo.getPosition());
         telemetry.addData("Arm Forward Servo", "Position: %.2f", arm_forward.getPosition());
         telemetry.addData("armForwardPosition Boolean", armForwardPosition);
+        telemetry.addData("Auto State", currentAutoState);
 
-        // 添加 catch pose 和 chamber pose 的 telemetry 输出
+        telemetry.addLine("--- 视觉检测数据 (持续更新) ---");
+        List<DetectedCube> currentCubes;
+        synchronized (colorDetectionPipeline) {
+            currentCubes = colorDetectionPipeline.getDetectedCubes();
+        }
+
+        if (!currentCubes.isEmpty()) {
+            for (DetectedCube cube : currentCubes) {
+                telemetry.addLine("--- 检测到方块 ---");
+                telemetry.addData("颜色", cube.color);
+                telemetry.addData("图像坐标 (px)", String.format(Locale.US, "(%d, %d)", cube.centerXImagePx, cube.centerYImagePx));
+                telemetry.addData("世界坐标 (cm)", String.format(Locale.US, "(%.1f, %.1f)", cube.centerXCm, cube.centerYCm));
+                telemetry.addData("角度 (度)", String.format(Locale.US, "%.1f", cube.angleDegrees));
+                telemetry.addData("宽高比 (短/长)", String.format(Locale.US, "%.2f", cube.aspectRatio));
+                telemetry.addData("面积 (pixels^2)", String.format(Locale.US, "%.2f", cube.boundingBox.area()));
+            }
+        } else {
+            telemetry.addLine("未检测到方块 (持续更新)");
+        }
+
+        int clawCenterXPixel = colorDetectionPipeline.getClawCenterXPixel();
+        int clawCenterYPixel = colorDetectionPipeline.getClawCenterYPixel();
+        double clawCenterXCm = colorDetectionPipeline.getClawCenterXCm();
+        double clawCenterYCm = colorDetectionPipeline.getClawCenterYCm();
+        double moveForward = colorDetectionPipeline.getMoveForward();
+        double moveSideways = colorDetectionPipeline.getMoveSideways();
+        double servoPositionOffset = colorDetectionPipeline.getServoPositionOffset();
+
+        telemetry.addLine("--- 当前爪子位置 ---");
+        telemetry.addData("爪子图像坐标 (px)", String.format(Locale.US, "(%d, %d)", clawCenterXPixel, clawCenterYPixel));
+        telemetry.addData("爪子世界坐标 (cm)", String.format(Locale.US, "(%.1f, %.1f)", clawCenterXCm, clawCenterYCm));
+
+        telemetry.addLine("--- 运动指令 ---");
+        if (!currentCubes.isEmpty()) {
+            DetectedCube closestCube;
+            synchronized (colorDetectionPipeline) {
+                closestCube = colorDetectionPipeline.getClosestCube();
+            }
+            if (closestCube != null) {
+                telemetry.addData("目标颜色", closestCube.color.toUpperCase());
+                telemetry.addData("前进距离 (cm)", String.format(Locale.US, "%.1f", moveForward));
+                telemetry.addData("横向移动 (cm)", String.format(Locale.US, "%.1f", moveSideways));
+                telemetry.addData("舵机偏移量", String.format(Locale.US, "%.3f", servoPositionOffset));
+                telemetry.addData("直线距离 (cm)", String.format(Locale.US, "%.1f", colorDetectionPipeline.getDistanceToClosestCube()));
+                telemetry.addData("目标面积 (pixels^2)", String.format(Locale.US, "%.2f", closestCube.boundingBox.area()));
+            } else {
+                telemetry.addLine("未找到有效目标方块");
+            }
+        } else {
+            telemetry.addLine("未检测到长方体，无运动指令");
+        }
+
+        telemetry.addData("claw_heng Target Pos", String.format("%.3f", (SERVO_CENTER_POSITION_HENG + colorDetectionPipeline.getServoPositionOffset())));
+        telemetry.addData("claw_heng Current Pos", String.format("%.3f", claw_heng.getPosition()));
+
         telemetry.addData("Catch Pose", recordedCatchPose != null ? recordedCatchPose.toString() : "null");
         telemetry.addData("Chamber Pose", recordedChamberPose != null ? recordedChamberPose.toString() : "null");
-        telemetry.addData("Drive Speed Multiplier", driveSpeedMultiplier); // Show speed multiplier in telemetry
+        telemetry.addData("Drive Speed Multiplier", driveSpeedMultiplier);
 
         telemetry.update();
     }
@@ -826,6 +1134,375 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         public boolean run(@NonNull TelemetryPacket telemetryPacket) {
             FrontSlide.setPosition(position);
             return false;
+        }
+    }
+
+    public static double wrapAroundServoValue(double value) {
+        while (value > 1) {
+            value -= 1;
+        }
+        while (value < 0) {
+            value += 1;
+        }
+        return value;
+    }
+
+
+    class ColorDetectionPipelineImpl extends OpenCvPipeline {
+        private final Mat hsvImage = new Mat();
+        private final Mat mask = new Mat();
+        private final List<DetectedCube> detectedCubes = new ArrayList<>();
+        private boolean viewportPaused;
+
+        private final Mat redMask1 = new Mat();
+        private final Mat redMask2 = new Mat();
+        private final Mat blueMask = new Mat();
+        private final Mat yellowMask = new Mat();
+
+        private static final int MOVING_AVERAGE_WINDOW_SIZE = 5;
+        private final List<Double> moveForwardHistory = new ArrayList<>();
+        private final List<Double> moveSidewaysHistory = new ArrayList<>();
+
+
+        private int clawCenterXPixel;
+        private int clawCenterYPixel;
+        private double clawCenterXCm;
+        private double clawCenterYCm;
+        private volatile double moveForward = 0;
+        private volatile double moveSideways = 0;
+        private volatile double servoPositionOffset = 0;
+        private DetectedCube closestCube = null;
+        private double distanceToClosestCube = 0;
+
+        public int getClawCenterXPixel() { return clawCenterXPixel; }
+        public int getClawCenterYPixel() { return clawCenterYPixel; }
+        public double getClawCenterXCm() { return clawCenterXCm; }
+        public double getClawCenterYCm() { return clawCenterYCm; }
+        public double getMoveForward() { return moveForward; }
+        public double getMoveSideways() { return moveSideways; }
+        public double getServoPositionOffset() { return servoPositionOffset; }
+        public synchronized List<DetectedCube> getDetectedCubes() {
+            return new ArrayList<>(detectedCubes);
+        }
+        public synchronized DetectedCube getClosestCube() {
+            return closestCube;
+        }
+        public double getDistanceToClosestCube() { return distanceToClosestCube; }
+
+
+        @Override
+        public Mat processFrame(Mat input) {
+            Mat outputImage = input.clone();
+
+            double brightnessFactor = 0.77;
+            double contrastFactor = 1.2;
+
+            outputImage.convertTo(outputImage, CvType.CV_8U, contrastFactor, (128 - 128 * contrastFactor) + brightnessFactor * 0);
+
+
+            synchronized (this) {
+                detectedCubes.clear();
+                closestCube = null;
+                distanceToClosestCube = 0;
+                resetMovementAndAngle();
+
+                Imgproc.cvtColor(outputImage, hsvImage, Imgproc.COLOR_RGB2HSV);
+
+                Core.inRange(hsvImage, RED_LOWER_1, RED_UPPER_1, redMask1);
+                Core.inRange(hsvImage, RED_LOWER_2, RED_UPPER_2, redMask2);
+                Core.bitwise_or(redMask1, redMask2, mask);
+
+                Core.inRange(hsvImage, BLUE_LOWER, BLUE_UPPER, blueMask);
+                Core.bitwise_or(mask, blueMask, mask);
+
+                Core.inRange(hsvImage, YELLOW_LOWER, YELLOW_UPPER, yellowMask);
+                Core.bitwise_or(mask, yellowMask, mask);
+
+                int width = outputImage.cols();
+                int height = outputImage.rows();
+                clawCenterXPixel = (int) (CLAW_CENTER_X_CM / PIXELS_TO_CM_RATIO + (double) width / 2);
+                clawCenterYPixel = (int) (height - (CLAW_CENTER_Y_CM + CLAW_OFFSET_FROM_CAMERA_CM) / PIXELS_TO_CM_RATIO);
+                clawCenterXCm = calculateWorldCoordinatesX(clawCenterXPixel, height);
+                clawCenterYCm = calculateWorldCoordinatesY(clawCenterYPixel, height);
+
+
+                Imgproc.drawMarker(outputImage, new Point(clawCenterXPixel, clawCenterYPixel), new Scalar(0, 255, 255), Imgproc.MARKER_CROSS, 20, 2);
+
+                detectColorRegions(outputImage, outputImage, mask);
+            }
+            calculateMovementAndServoOffset(outputImage);
+
+            double rawMoveForward = moveForward;
+            double rawMoveSideways = moveSideways;
+
+            moveForward = applyMovingAverage(moveForwardHistory, moveForward);
+            moveSideways = applyMovingAverage(moveSidewaysHistory, moveSideways);
+
+
+            redMask1.release();
+            redMask2.release();
+            blueMask.release();
+            yellowMask.release();
+            mask.release();
+            hsvImage.release();
+
+            return outputImage;
+        }
+
+
+        private void detectColorRegions(Mat input, Mat outputImage, Mat mask) {
+            List<MatOfPoint> contours = new ArrayList<>();
+            Mat hierarchy = new Mat();
+            Mat localMask = mask.clone();
+
+            try {
+                Imgproc.findContours(localMask, contours, hierarchy, Imgproc.RETR_EXTERNAL, Imgproc.CHAIN_APPROX_SIMPLE);
+
+                for (MatOfPoint contour : contours) {
+                    if (Imgproc.contourArea(contour) < 500) continue;
+
+                    RotatedRect rect = Imgproc.minAreaRect(new MatOfPoint2f(contour.toArray()));
+                    Size size_rect = rect.size;
+                    double w_rect = size_rect.width;
+                    double h_rect = size_rect.height;
+                    double angle_rect = rect.angle;
+
+                    Rect boundingBox = Imgproc.boundingRect(contour);
+                    int x = boundingBox.x;
+                    int y = boundingBox.y;
+                    int w = boundingBox.width;
+                    int h = boundingBox.height;
+
+                    if (w < MIN_REGION_WIDTH || h < MIN_REGION_HEIGHT) continue;
+
+                    if (w > SINGLE_SIDE_MAX_SIZE || h > SINGLE_SIDE_MAX_SIZE) {
+                        continue;
+                    }
+                    if (w > DOUBLE_SIDE_MAX_SIZE && h > DOUBLE_SIDE_MAX_SIZE) {
+                        continue;
+                    }
+
+
+                    double aspectRatioDetected = 0.0;
+                    double angleDegrees = 0.0;
+
+                    if (w_rect > 0 && h_rect > 0) {
+                        if (w_rect > h_rect) {
+                            aspectRatioDetected = h_rect / w_rect;
+                            angleDegrees = angle_rect;
+                        } else {
+                            aspectRatioDetected = w_rect / h_rect;
+                            angleDegrees = angle_rect + 90;
+                        }
+                        angleDegrees = angleDegrees % 180;
+                    }
+
+                    Point center = new Point(x + w / 2.0, y + h / 2.0);
+                    DetectedCube cube = createDetectedCube(input, center, angleDegrees, boundingBox, aspectRatioDetected);
+                    synchronized (this) {
+                        detectedCubes.add(cube);
+                    }
+
+                    Imgproc.rectangle(outputImage, boundingBox, new Scalar(0, 255, 0), 2);
+                    Imgproc.putText(outputImage, String.format(Locale.US, "%s %.1fdeg", cube.color, angleDegrees),
+                            new Point(x, y - 10), Imgproc.FONT_HERSHEY_SIMPLEX, 0.6, new Scalar(255, 0, 0), 2);
+                }
+                contours.forEach(Mat::release);
+            } finally {
+                hierarchy.release();
+                localMask.release();
+            }
+        }
+
+
+        private double calculateAspectRatio(double width, double height) {
+            return (width > height) ? height / width : width / height;
+        }
+
+        private DetectedCube createDetectedCube(Mat input, Point center, double angleDegrees, Rect boundingBox, double aspectRatioDetected) {
+            String color = getColorFromMask((int) center.x, (int) center.y);
+            return new DetectedCube(
+                    color,
+                    (int) center.x,
+                    (int) center.y,
+                    angleDegrees,
+                    boundingBox,
+                    aspectRatioDetected,
+                    input.cols(),
+                    input.rows(),
+                    PIXELS_TO_CM_RATIO,
+                    CLAW_OFFSET_FROM_CAMERA_CM
+            );
+        }
+
+        private String getColorFromMask(int x, int y) {
+            int regionSize = 10;
+            int halfRegionSize = regionSize / 2;
+            int redCount = 0;
+            int blueCount = 0;
+            int yellowCount = 0;
+            int totalPixels = regionSize * regionSize;
+
+            for (int i = -halfRegionSize; i < halfRegionSize; i++) {
+                for (int j = -halfRegionSize; j < halfRegionSize; j++) {
+                    int sampleX = x + j;
+                    int sampleY = y + i;
+
+                    if (sampleX >= 0 && sampleX < redMask1.cols() && sampleY >= 0 && sampleY < redMask1.rows()) {
+                        try {
+                            if (redMask1.get(sampleY, sampleX)[0] == 255 || redMask2.get(sampleY, sampleX)[0] == 255) {
+                                redCount++;
+                            } else if (blueMask.get(sampleY, sampleX)[0] == 255) {
+                                blueCount++;
+                            } else if (yellowMask.get(sampleY, sampleX)[0] == 255) {
+                                yellowCount++;
+                            }
+                        } catch (Exception e) {
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if (redCount >= blueCount && redCount >= yellowCount && redCount > 0) {
+                return "red";
+            } else if (blueCount >= redCount && blueCount >= yellowCount && blueCount > 0) {
+                return "blue";
+            } else if (yellowCount >= redCount && yellowCount >= blueCount && yellowCount > 0) {
+                return "yellow";
+            } else {
+                return "unknown";
+            }
+        }
+
+        private double calculateWorldCoordinatesX(int centerXPixel, int imageHeight) {
+            return (centerXPixel - imageHeight / 2.0) * PIXELS_TO_CM_RATIO;
+        }
+
+        private double calculateWorldCoordinatesY(int centerYPixel, int imageHeight) {
+            int pixelDistanceFromBody = imageHeight - centerYPixel;
+            return (pixelDistanceFromBody * PIXELS_TO_CM_RATIO) - CLAW_OFFSET_FROM_CAMERA_CM;
+        }
+
+
+        private void calculateMovementAndServoOffset(Mat outputImage) {
+            List<DetectedCube> validCubesAlliance = new ArrayList<>();
+            List<DetectedCube> validCubesNeutral = new ArrayList<>();
+            List<DetectedCube> currentDetectedCubes;
+
+            synchronized (this) {
+                currentDetectedCubes = new ArrayList<>(detectedCubes);
+            }
+
+
+            for (DetectedCube cube : currentDetectedCubes) {
+                if (cube.color.equals("yellow")) {
+                    validCubesNeutral.add(cube);
+                } else if (cube.color.equalsIgnoreCase(SingleStickWithArmWithVision.ALLIANCE_COLOR)) {
+                    validCubesAlliance.add(cube);
+                }
+            }
+
+            List<DetectedCube> cubesToConsider = validCubesAlliance.isEmpty() ? validCubesNeutral : validCubesAlliance;
+            if (!cubesToConsider.isEmpty()) {
+                for (DetectedCube cube : cubesToConsider) {
+                    cube.distanceToClawCm = calculateDistance(cube);
+                }
+                cubesToConsider.sort((c1, c2) -> Double.compare(c1.distanceToClawCm, c2.distanceToClawCm));
+                synchronized (this) {
+                    closestCube = cubesToConsider.get(0);
+                }
+                distanceToClosestCube = closestCube.distanceToClawCm;
+
+                moveForward = closestCube.centerYCm - clawCenterYCm;
+                moveSideways = closestCube.centerXCm - clawCenterXCm - CLAW_HORIZONTAL_ERROR_CM;
+
+                double clawAngleDegrees = closestCube.angleDegrees;
+
+                double angleDeviation = clawAngleDegrees + 90;
+                double servoValueChange = angleDeviation / 180.0;
+                double servoValue = 0.54 + servoValueChange;
+
+                servoValue = SingleStickWithArmWithVision.wrapAroundServoValue(servoValue);
+                servoPositionOffset = servoValue - SERVO_CENTER_POSITION_HENG;
+
+                Rect bb = closestCube.boundingBox;
+                Imgproc.rectangle(outputImage, bb, new Scalar(255, 0, 255), 3);
+
+                int targetClawCenterXPixel = clawCenterXPixel + (int)(moveSideways / PIXELS_TO_CM_RATIO);
+                int targetClawCenterYPixel = clawCenterYPixel - (int)(moveForward / PIXELS_TO_CM_RATIO);
+
+                Imgproc.drawMarker(outputImage, new Point(targetClawCenterXPixel, targetClawCenterYPixel), new Scalar(255, 255, 0), Imgproc.MARKER_CROSS, 20, 2);
+
+                Imgproc.line(outputImage, new Point(clawCenterXPixel, clawCenterYPixel), new Point(targetClawCenterXPixel, targetClawCenterYPixel), new Scalar(255, 255, 0), 2);
+
+            } else {
+                resetMovementAndAngle();
+            }
+        }
+
+
+        private double calculateDistance(DetectedCube cube) {
+            double dx = cube.centerXCm - clawCenterXCm;
+            double dy = cube.centerYCm - clawCenterYCm;
+            return Math.sqrt(dx * dx + dy * dy);
+        }
+
+        private synchronized void resetMovementAndAngle() {
+            moveForward = 0;
+            moveSideways = 0;
+            servoPositionOffset = 0;
+            closestCube = null;
+            distanceToClosestCube = 0;
+            moveForwardHistory.clear();
+            moveSidewaysHistory.clear();
+        }
+
+
+        @Override
+        public void onViewportTapped() {
+            viewportPaused = !viewportPaused;
+            if (viewportPaused) camera.pauseViewport();
+            else camera.resumeViewport();
+        }
+
+        private double applyMovingAverage(List<Double> history, double newValue) {
+            history.add(newValue);
+
+            if (history.size() > MOVING_AVERAGE_WINDOW_SIZE) {
+                history.remove(0);
+            }
+
+            double sum = 0;
+            for (Double value : history) {
+                sum += value;
+            }
+
+            return sum / history.size();
+        }
+    }
+
+    public static class DetectedCube {
+        String color;
+        int centerXImagePx;
+        int centerYImagePx;
+        double centerXCm;
+        double centerYCm;
+        double angleDegrees;
+        Rect boundingBox;
+        double aspectRatio;
+        double distanceToClawCm;
+
+        public DetectedCube(String color, int x, int y, double angle, Rect rect, double ratio, int imgWidth, int imgHeight, double pixelsToCmRatio, double clawOffsetFromCameraCm) {
+            this.color = color;
+            this.centerXImagePx = x;
+            this.centerYImagePx = y;
+            this.angleDegrees = angle;
+            this.boundingBox = rect;
+            this.aspectRatio = ratio;
+            this.centerXCm = (x - imgWidth / 2.0) * pixelsToCmRatio;
+            this.centerYCm = (imgHeight - y) * pixelsToCmRatio - clawOffsetFromCameraCm;
+            this.distanceToClawCm = 0;
         }
     }
 }

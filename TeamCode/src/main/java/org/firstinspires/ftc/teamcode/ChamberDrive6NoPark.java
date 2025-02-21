@@ -5,10 +5,8 @@ import androidx.annotation.NonNull;
 import com.acmerobotics.dashboard.telemetry.TelemetryPacket;
 import com.acmerobotics.roadrunner.Action;
 import com.acmerobotics.roadrunner.Pose2d;
-import com.acmerobotics.roadrunner.ProfileAccelConstraint;
 import com.acmerobotics.roadrunner.TranslationalVelConstraint;
 import com.acmerobotics.roadrunner.Vector2d;
-import com.acmerobotics.roadrunner.VelConstraint;
 import com.acmerobotics.roadrunner.ftc.Actions;
 import com.qualcomm.robotcore.eventloop.opmode.Autonomous;
 import com.qualcomm.robotcore.eventloop.opmode.LinearOpMode;
@@ -17,10 +15,11 @@ import com.qualcomm.robotcore.hardware.DcMotorEx;
 import com.qualcomm.robotcore.hardware.DcMotorSimple;
 import com.qualcomm.robotcore.hardware.Servo;
 
-import org.firstinspires.ftc.teamcode.tuning.OPT_TuningRunner;
+
+import org.firstinspires.ftc.robotcore.external.hardware.camera.WebcamName;
 
 @Autonomous(name = "FuckingBest_5_SpecimensWithFuckingPark",group = "Competition")
-public class ChamberDrive5Park extends LinearOpMode {
+public class ChamberDrive6NoPark extends LinearOpMode {
 
     // public double CM_TO_INCH(double cm){
     //     return cm*0.39370;
@@ -31,10 +30,27 @@ public class ChamberDrive5Park extends LinearOpMode {
     private static final double BACK_ARM_SET_POSITION = 0.82;
     private static final double BACK_ARM_RESET_POSITION = 0.17;
     private static final int LIMIT_VEL= 28;
+    private WebcamName webcamName;
+    private MecanumDrive drive;
     private Servo FuckingArm,backgrap,forward_claw,claw_shu,claw_heng,arm_forward,forward_slide,forward_slide2;
     @Override
     public void runOpMode() throws InterruptedException {
         MecanumDrive Drive = new MecanumDrive(hardwareMap, new Pose2d(-62.5,0,Math.PI));
+        webcamName = hardwareMap.get(WebcamName.class, "Webcam");
+        if (webcamName == null) {
+            telemetry.addData("摄像头错误", "找不到名为 'Webcam' 的摄像头硬件配置.");
+            telemetry.update();
+            return;
+        }
+
+        if (!VisionAPI.initialize(webcamName, telemetry)) { // Static initialization call
+            telemetry.addLine("VisionAPI 初始化失败，请检查配置。");
+            telemetry.update();
+            while (opModeInInit()) {
+                idle();
+            }
+            return;
+        }
         Left_Hanging_Motor = hardwareMap.get(DcMotorEx.class, "LeftHangingMotor");
         Right_Hanging_Motor = hardwareMap.get(DcMotorEx.class, "RightHangingMotor");
         forward_claw = hardwareMap.get(Servo.class,"forward_claw");
@@ -64,7 +80,7 @@ public class ChamberDrive5Park extends LinearOpMode {
 
         backgrap.setPosition(0.6);
         FuckingArm.setPosition(0.17);
-        claw_heng.setPosition(0.55);
+        claw_heng.setPosition(0.54);
         forward_claw.setPosition(0.88);
         forward_slide.setPosition(0);
         arm_forward.setPosition(0.8);
@@ -74,13 +90,58 @@ public class ChamberDrive5Park extends LinearOpMode {
         Actions.runBlocking(
                 Drive.actionBuilder(new Pose2d(-62.5,0,Math.PI))
                         .setTangent(0)
+                        .stopAndAdd(new ServoAction(forward_slide, 0.9))
+                        .stopAndAdd(new ServoAction(arm_forward, 0.3))
+                        .stopAndAdd(new ServoAction(claw_shu, 1))
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_UP_POSITION))
                         .waitSeconds(0.1)
                         .stopAndAdd(new ArmMotorAction(BigArm,false,BIG_ARM_SET_POSITION))
                         .stopAndAdd(new ServoAction(FuckingArm,BACK_ARM_SET_POSITION))
                         .splineToConstantHeading(new Vector2d(-33.1, 0), 0)
+                        .build());
+
+        claw_shu.setPosition(0.32);
+        claw_heng.setPosition(0.54);
+        forward_slide.setPosition(0.9);
+        forward_claw.setPosition(0.85);
+        VisionAPI.ApproachData approachData = VisionAPI.getApproachData();
+
+        Actions.runBlocking(
+                Drive.actionBuilder(new Pose2d(-33.1, 0,Math.PI))
                         .stopAndAdd(new ServoAction(backgrap,0))
                         .waitSeconds(0.1)
+                        .build());
+
+        Vector2d targetPosition = new Vector2d(
+                drive.pose.position.x + approachData.moveForwardcm * 0.39370,
+                drive.pose.position.y - approachData.moveSidewaysCm * 0.39370
+        );
+        Action approachMovement = drive.actionBuilder(drive.pose)
+                .splineToConstantHeading(targetPosition, 0)
+                .build();
+        Actions.runBlocking(approachMovement);
+        VisionAPI.GrabData grabData = VisionAPI.getGrabData();
+        Action visionBasedMovement = drive.actionBuilder(drive.pose)
+                .splineToConstantHeading(
+                        new Vector2d(drive.pose.position.x + grabData.moveSidewaysCm * 0.39370,
+                                drive.pose.position.y - grabData.moveSidewaysCm * 0.39370), 0
+                )
+                .stopAndAdd(new SingleStickWithArm.ServoAction(arm_forward, 0.4))
+                .stopAndAdd(new SingleStickWithArm.ServoAction(claw_heng, grabData.servoPosition))
+                .stopAndAdd(new SingleStickWithArm.ServoAction(claw_shu, 1))
+                .build();
+
+        Actions.runBlocking(visionBasedMovement);
+        sleep(100);
+        arm_forward.setPosition(0.16);
+        sleep(150);
+        forward_claw.setPosition(0);
+        sleep(200);
+        arm_forward.setPosition(0.4);
+
+        Actions.runBlocking(
+                Drive.actionBuilder(new Pose2d(drive.pose.position.x + grabData.moveSidewaysCm * 0.39370,
+                                drive.pose.position.y - grabData.moveSidewaysCm * 0.39370,Math.PI))
                         //First Chamber set
                          //Todo: Grab open
                         //Reset lift6
@@ -195,51 +256,6 @@ public class ChamberDrive5Park extends LinearOpMode {
                         .splineToConstantHeading(new Vector2d(-32, -3), 0)
                         .stopAndAdd(new ServoAction(backgrap,0))
                         .waitSeconds(0.1)
-
-/*
-                        //.setTangent(180)
-                        //Todo: Grab open and back arm set down
-                        .splineToConstantHeading(new Vector2d(-40,-20),-Math.PI*0.61111)
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_RESET_POSITION))
-                        .splineToConstantHeading(new Vector2d(-61.5,-37),0)
-                        //Todo:Grab close
-                        //Lift up first
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_UP_POSITION))
-
-                        .splineToConstantHeading(new Vector2d(-52,-30),Math.PI*0.0416666)
-                        //Todo: Back arm set up
-                        .splineToConstantHeading(new Vector2d(-32,0),Math.PI/4)
-                        //set sample
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_RESET_POSITION))
-                        //Todo: Grab open and back arm set down
-                        .splineToConstantHeading(new Vector2d(-35,-20),-Math.PI*0.61111)
-                        .splineToConstantHeading(new Vector2d(-53,-37),Math.PI)
-                        .splineToConstantHeading(new Vector2d(-61.5,-37),0)
-                        //Todo: Grab close
-
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_UP_POSITION))
-                        .splineToConstantHeading(new Vector2d(-52,-30),Math.PI*0.0416666)
-
-                        //Todo: Back arm set up
-                        .splineToConstantHeading(new Vector2d(-32.5,0),Math.PI/4)
-                        //Todo: Grab open and back arm set down
-                        //set sample
-
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_RESET_POSITION))
-
-                        .splineToConstantHeading(new Vector2d(-35,-20),-Math.PI*0.61111)
-                        .splineToConstantHeading(new Vector2d(-53,-37),Math.PI)
-                        .splineToConstantHeading(new Vector2d(-61.5,-37),0)
-                        //Todo: Grab close
-                        //Lift up first
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_UP_POSITION))
-                        .splineToConstantHeading(new Vector2d(-52,-30),Math.PI*0.0416666)
-                        //Todo: Back arm set up
-                        .splineToConstantHeading(new Vector2d(-32.5,0),Math.PI/4)
-                        //Todo: Grab open and back arm set down
-                        //set sample
-                        */
-                        //.stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,LIFT_RESET_POSITION))
                         .stopAndAdd(new ArmMotorAction(BigArm,true,0))
                         .stopAndAdd(new ServoAction(FuckingArm,BACK_ARM_RESET_POSITION))
                         .stopAndAdd(new MotorAction(Left_Hanging_Motor,Right_Hanging_Motor,0))
@@ -293,7 +309,7 @@ public class ChamberDrive5Park extends LinearOpMode {
             return false;
         }
     }
-    public class ArmMotorAction implements Action{
+    public static class ArmMotorAction implements Action{
         DcMotorEx arm = null;
         boolean IsSet = false;
         int position = 0;
@@ -314,7 +330,7 @@ public class ChamberDrive5Park extends LinearOpMode {
             return false;
         }
     }
-    public class MotorAction implements Action {
+    public static class MotorAction implements Action {
         DcMotorEx Left_Hanging_Motor = null;
         DcMotorEx Right_Hanging_Motor = null;
         int position = 0;
@@ -335,7 +351,7 @@ public class ChamberDrive5Park extends LinearOpMode {
             return false;
         }
     }
-    public class ServoAction implements Action {
+    public static class ServoAction implements Action {
         Servo FrontSlide = null;
         double position = 0;
         boolean hasInitialized = false;

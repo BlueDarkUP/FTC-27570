@@ -38,7 +38,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-@TeleOp(name = "100%不崩溃的视觉程序-自动连续")
+@TeleOp(name = "100%不崩溃的视觉程序-自动连续-双手柄控制") // Changed OpMode name to indicate dual gamepad control
 public class WebcamExample extends LinearOpMode {
     private MecanumDrive drive;
 
@@ -84,7 +84,7 @@ public class WebcamExample extends LinearOpMode {
         static final double FORWARD_SLIDE_2_DEFAULT = 0.37;
         static final double ARM_FORWARD_OVERRIDE = 0.4;
         static final double FORWARD_SLIDE_OVERRIDE = 0.9;
-        static final double FORWARD_CLAW_DEFAULT = 0.85;
+        static final double FORWARD_CLAW_DEFAULT = 0.9;
         static final double FORWARD_CLAW_GRAB = 0.0;
     }
 
@@ -101,7 +101,8 @@ public class WebcamExample extends LinearOpMode {
     private boolean isApproached = false;
     private enum AutoState {
         IDLE,
-        APPROACHING,
+        APPROACHING_STEP_1, // 第一次接近动作
+        APPROACHING_STEP_2, // 第二次接近动作
         GRABBING
     }
     private AutoState currentAutoState = AutoState.IDLE;
@@ -273,10 +274,10 @@ public class WebcamExample extends LinearOpMode {
     private void handleGamepadInput() {
         if (gamepad1.circle && currentAutoState == AutoState.IDLE) {
             ALLIANCE_COLOR = "blue"; // Set alliance color to blue if gamepad1.circle is pressed
-            currentAutoState = AutoState.APPROACHING; // 按下圆圈按钮开始自动流程
+            currentAutoState = AutoState.APPROACHING_STEP_1; // 按下圆圈按钮开始自动流程, 第一次接近
         } else if (gamepad2.circle && currentAutoState == AutoState.IDLE) { // Added gamepad2.circle check
             ALLIANCE_COLOR = "red"; // Set alliance color to red if gamepad2.circle is pressed
-            currentAutoState = AutoState.APPROACHING; // 按下圆圈按钮开始自动流程
+            currentAutoState = AutoState.APPROACHING_STEP_1; // 按下圆圈按钮开始自动流程，第一次接近
         }
         else if (currentAutoState == AutoState.IDLE) {
             driveRobotManually();
@@ -284,14 +285,16 @@ public class WebcamExample extends LinearOpMode {
     }
 
     private void processAutoStateMachine() {
-        if (currentAutoState == AutoState.APPROACHING) {
-            processFrameAndApproach();
+        if (currentAutoState == AutoState.APPROACHING_STEP_1) {
+            processFrameAndApproach(AutoState.APPROACHING_STEP_2); // 执行第一次接近，完成后进入第二次接近状态
+        } else if (currentAutoState == AutoState.APPROACHING_STEP_2) {
+            processFrameAndApproach(AutoState.GRABBING);      // 执行第二次接近，完成后进入抓取状态
         } else if (currentAutoState == AutoState.GRABBING) {
             processFrameAndGrab();
         }
     }
 
-    private void processFrameAndApproach() {
+    private void processFrameAndApproach(AutoState nextState) {
         if (!processFrameFlag) {
             processFrameFlag = true;
             List<DetectedCube> cubes;
@@ -303,9 +306,9 @@ public class WebcamExample extends LinearOpMode {
                 closestCube = colorDetectionPipeline.getClosestCube();
             }
 
-            if (!cubes.isEmpty() && closestCube != null && closestCube.boundingBox.area() < MIN_AREA_THRESHOLD_PIXELS && !isApproached) {
+            if (!cubes.isEmpty() && closestCube != null && !isApproached) { // 移除面积判断条件
                 isApproached = true;
-                telemetry.addLine("检测到小方块，执行接近动作...");
+                telemetry.addLine("检测到方块，执行接近动作...");
                 telemetry.update();
 
                 try {
@@ -318,7 +321,7 @@ public class WebcamExample extends LinearOpMode {
                             .build();
                     Actions.runBlocking(approachMovement);
                     telemetry.addLine("Road Runner 接近动作完成.");
-                    currentAutoState = AutoState.GRABBING; // 接近完成后自动进入抓取状态
+                    currentAutoState = nextState; // 接近完成后自动进入下一个状态 (传入的 nextState)
                     isApproached = false; // Reset isApproached for next time if needed
                 } catch (Exception e) {
                     telemetry.addLine("*** Road Runner 接近动作报错 ***");
@@ -326,12 +329,9 @@ public class WebcamExample extends LinearOpMode {
                     currentAutoState = AutoState.IDLE; // 发生错误，回到 IDLE 状态
                     isApproached = false;
                 }
-            } else if (!cubes.isEmpty() && closestCube != null && closestCube.boundingBox.area() >= MIN_AREA_THRESHOLD_PIXELS) {
-                telemetry.addLine("检测到足够大的方块，直接进入抓取动作...");
-                telemetry.update();
-                currentAutoState = AutoState.GRABBING; // 如果一开始就检测到大方块，直接进入抓取
-                isApproached = false;
             }
+            // 移除 else if (面积大的情况) 的判断分支，因为我们总是要先接近
+
             else {
                 telemetry.addLine("未检测到方块或不满足接近条件，等待下一次检测。");
                 currentAutoState = AutoState.IDLE; // 未检测到方块，回到 IDLE 状态
@@ -362,25 +362,31 @@ public class WebcamExample extends LinearOpMode {
 
             if (!cubes.isEmpty()) {
                 try {
+                    telemetry.addLine("准备设置 clawShuServo 为 1"); // 添加调试信息
+                    telemetry.update();
                     Action visionBasedMovement = drive.actionBuilder(drive.pose)
                             .splineToConstantHeading(
                                     new Vector2d(drive.pose.position.x + moveForwardCm * 0.39370, drive.pose.position.y - moveSidewaysCm * 0.39370), 0
                             )
+                            .stopAndAdd(new SingleStickWithArm.ServoAction(clawShuServo, 1)) // Servo action here
+                            .waitSeconds(0.1) // 等待 0.1 秒
                             .stopAndAdd(new SingleStickWithArm.ServoAction(armForwardServo, 0.4))
                             .stopAndAdd(new SingleStickWithArm.ServoAction(clawHengServo, targetHengServoPosition))
-                            .stopAndAdd(new SingleStickWithArm.ServoAction(clawShuServo, 1))
+                            .stopAndAdd(new SingleStickWithArm.ServoAction(forwardClawServo, 0.95))
                             .build();
 
                     Actions.runBlocking(visionBasedMovement);
                     telemetry.addLine("Road Runner 抓取动作完成.");
+                    telemetry.addLine("clawShuServo 设置完成"); // 添加调试信息
+                    telemetry.update();
                 } catch (Exception e) {
                     telemetry.addLine("*** Road Runner 抓取动作报错 ***");
                     telemetry.addLine("异常信息: " + e.getMessage());
                 }
-
+                sleep(100);
                 armForwardServo.setPosition(0.16);
                 sleep(200);
-                forwardClawServo.setPosition(ServoPositions.FORWARD_CLAW_GRAB);
+                forwardClawServo.setPosition(0);
                 sleep(400);
                 armForwardServo.setPosition(0.4);
                 sleep(1000);
@@ -405,6 +411,13 @@ public class WebcamExample extends LinearOpMode {
         double y = gamepad1.left_stick_y;
         double x = -gamepad1.left_stick_x;
         double rx = gamepad1.right_trigger - gamepad1.left_trigger;
+
+        // Override with gamepad2 inputs if available
+        if (Math.abs(gamepad2.left_stick_y) > 0.1 || Math.abs(gamepad2.left_stick_x) > 0.1 || Math.abs(gamepad2.right_trigger - gamepad2.left_trigger) > 0.1) {
+            y = gamepad2.left_stick_y;
+            x = -gamepad2.left_stick_x;
+            rx = gamepad2.right_trigger - gamepad2.left_trigger;
+        }
 
         double denominator = Math.max(Math.abs(y) + Math.abs(x) + Math.abs(rx), 1);
         double leftFrontPower = (y + x + rx) / denominator;
@@ -788,7 +801,8 @@ public class WebcamExample extends LinearOpMode {
                 // 新的舵机数值计算算法
                 double angleDeviation = clawAngleDegrees + 90; // 角度偏差
                 double servoValueChange = angleDeviation / 180.0; // 舵机数值变化量
-                double servoValue = 0.54 - servoValueChange; // 计算舵机数值
+                // Changed from subtraction to addition to reverse servo direction
+                double servoValue = 0.54 + servoValueChange; // 计算舵机数值
 
                 // 使用 wrap-around 算法, now calling the method in the outer class
                 servoValue = WebcamExample.wrapAroundServoValue(servoValue);
