@@ -522,6 +522,17 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
         }
 
 
+        if ((gamepad1.circle) && debounce(lastCircleButtonPressTime)) {
+            lastCircleButtonPressTime = System.currentTimeMillis();
+            arm_forward.setPosition(0.65);
+            claw_shu.setPosition(0.32);
+            claw_heng.setPosition(0.54);
+            forward_slide.setPosition(0.9);
+            forward_claw.setPosition(0.9);
+            ALLIANCE_COLOR = "blue";
+            currentAutoState = AutoState.APPROACHING_STEP_2;
+        }
+
         if ((gamepad1.circle || gamepad2.circle) && debounce(lastCircleButtonPressTime)) {
             lastCircleButtonPressTime = System.currentTimeMillis();
             arm_forward.setPosition(0.65);
@@ -529,13 +540,13 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             claw_heng.setPosition(0.54);
             forward_slide.setPosition(0.9);
             forward_claw.setPosition(0.9);
-            sleep(100);
-            if (gamepad1.circle) {
-                ALLIANCE_COLOR = "blue";
-            } else if (gamepad2.circle) {
-                ALLIANCE_COLOR = "red";
-            }
-            currentAutoState = AutoState.APPROACHING_STEP_1;
+            ALLIANCE_COLOR = "red";
+            currentAutoState = AutoState.APPROACHING_STEP_2;
+        }
+
+        if ((gamepad1.cross || gamepad2.cross) && debounce(lastCrossButtonPressTime)) {
+            lastCrossButtonPressTime = System.currentTimeMillis();
+            forward_claw.setPosition(0.9);
         }
 
 
@@ -720,12 +731,12 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
                                 .build());
 
                 int numberOfChamberPoints = 13;
-                double yIncrement = 5 * 0.39370;
+                double yIncrement = 4 * 0.39370;
 
                 for (int i = 0; i < numberOfChamberPoints; i++) {
                     Vector2d ChamberPoseInConstantHeading = new Vector2d(
                             current_chamber_pose.position.x - 0,
-                            current_chamber_pose.position.y + 5 * 0.39370
+                            current_chamber_pose.position.y + 4 * 0.39370
                     );
                     Actions.runBlocking(
                             drive.actionBuilder(drive.pose)
@@ -749,7 +760,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
                                     .build());
 
 
-                    current_chamber_pose = new Pose2d(current_chamber_pose.position.x, current_chamber_pose.position.y + 5 * 0.39370 + yIncrement, current_chamber_pose.heading.toDouble());
+                    current_chamber_pose = new Pose2d(current_chamber_pose.position.x, current_chamber_pose.position.y + 4 * 0.39370 + yIncrement, current_chamber_pose.heading.toDouble());
                 }
 
 

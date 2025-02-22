@@ -76,6 +76,7 @@ public class SingleStickWithArm extends LinearOpMode {
     private long lastDpadRightPressTime = 0;
     private long lastDpadLeftPressTime = 0;
     private long lastDpadUpPressTime = 0;
+    private long lastDpadDownPressTime = 0;
     private long lastLeftBumperPressTime = 0;
     private long lastRightBumperPressTime = 0;
 
@@ -95,6 +96,7 @@ public class SingleStickWithArm extends LinearOpMode {
 
     private int rightBumperPressCount = 0; // Counter for right bumper presses
     private double driveSpeedMultiplier = 1.0; // Multiplier for drive speed
+    private int dpadDownPressCount = 0; // Counter for D-pad down presses
 
 
     @Override
@@ -237,6 +239,7 @@ public class SingleStickWithArm extends LinearOpMode {
         recordedChamberPose = null;
         rightBumperPressCount = 0; // Reset speed control counter
         driveSpeedMultiplier = 1.0; // Reset speed multiplier to default
+        dpadDownPressCount = 0; // Reset dpad down press counter
     }
 
     private void initializeHardware() {
@@ -603,6 +606,36 @@ public class SingleStickWithArm extends LinearOpMode {
                 telemetry.update();
             }
 
+            if (gamepad1.dpad_down && debounce(lastDpadDownPressTime)) {
+                lastDpadDownPressTime = System.currentTimeMillis();
+                dpadDownPressCount++;
+                setMotorBrakeMode(false);
+                if (dpadDownPressCount % 2 != 0) { // Odd press
+                    Left_Hanging_Motor.setTargetPosition(2620);
+                    Right_Hanging_Motor.setTargetPosition(2620);
+                    Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    Left_Hanging_Motor.setPower(1);
+                    Right_Hanging_Motor.setPower(1);
+                    bigArmMotor.setTargetPosition(targetMotorPosition);
+                    double targetServoPosition = 0.84;
+                    backArmServo.setPosition(targetServoPosition);
+                    bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    double targetMotorPower = 0.7;
+                    bigArmMotor.setPower(targetMotorPower);
+                    telemetry.addData("D-pad Down", "Odd Press - Slide to Position 2620 and Arm Up");
+                } else { // Even press
+                    Left_Hanging_Motor.setTargetPosition(1100);
+                    Right_Hanging_Motor.setTargetPosition(1100);
+                    Left_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    Right_Hanging_Motor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
+                    Left_Hanging_Motor.setPower(1);
+                    Right_Hanging_Motor.setPower(1);
+                    telemetry.addData("D-pad Down", "Even Press - Slide to Position 1100");
+                }
+                telemetry.update();
+            }
+
 
         } else if (slideState == SlideState.MOVING_TO_POSITION && isSlideBusy()) {
             if (Left_Hanging_Motor.getTargetPosition() == SLIDE_HANG) {
@@ -693,7 +726,7 @@ public class SingleStickWithArm extends LinearOpMode {
         telemetry.addData("后爪", "状态: %s, 位置:%.2f", isClawOpen ? "打开" : "关闭", clawPosition);
         telemetry.addData("框状态", "位置: %.2f", frame.getPosition());
         telemetry.addData("框舵机目标位置:", frameCurrentPosition);
-        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive");
+        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive, D-pad下=滑轨高度切换");
         telemetry.addData("提示", "按下圆形按键控制前爪, 右摇杆控制前爪自由度,  三角键：前爪横向自由度， 交叉键：小臂, 右肩键：前滑轨伸缩, 右扳机：滑轨下降");
         telemetry.addData("电机 big_arm", "位置: %d, 目标: %d, 忙碌: %b, 模式: %s, Brake: %b, Power: %.2f",
                 bigArmMotor.getCurrentPosition(),
@@ -723,6 +756,7 @@ public class SingleStickWithArm extends LinearOpMode {
         telemetry.addData("Catch Pose", recordedCatchPose != null ? recordedCatchPose.toString() : "null");
         telemetry.addData("Chamber Pose", recordedChamberPose != null ? recordedChamberPose.toString() : "null");
         telemetry.addData("Drive Speed Multiplier", driveSpeedMultiplier); // Show speed multiplier in telemetry
+        telemetry.addData("Dpad Down Press Count", dpadDownPressCount);
 
         telemetry.update();
     }
