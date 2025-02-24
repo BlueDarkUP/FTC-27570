@@ -23,6 +23,8 @@ public class SingleStickWithArm extends LinearOpMode {
     private MecanumDrive drive;
     private static final double CLAW_INCREMENT = 0.55;
     private static final double DEBOUNCE_DELAY = 250;
+
+    private static double touchpadpressed = 0;
     private static final double BACK_ARM_RESET_POSITION = 0.18;
     private static final  int LIFT_UP_POSITION = 610;
     private static final double BACK_ARM_SET_POSITION = 0.84;
@@ -124,8 +126,29 @@ public class SingleStickWithArm extends LinearOpMode {
             handleSlideMovement();
             handleClawShuControl();
             handlePoseRecord();
+            handleTouchpadControl(); // Add touchpad control function here
             checkReset();
             updateTelemetry(robotHeading);
+        }
+    }
+
+    private void handleTouchpadControl() {
+        if (gamepad1.touchpad) { // Check if touchpad is pressed
+            bigArmMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // Set to run without encoder for continuous movement
+            bigArmMotor.setPower(0.5); // Move big_arm motor forward with 0.5 power
+            backArmServo.setPosition(0.8);
+        } else {
+            if (touchpadpressed == 0) {
+                bigArmMotor.setPower(0); // Stop big_arm motor when touchpad is released
+                backArmServo.setPosition(0.08); // Set back_arm servo to 0.08
+                bigArmMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); // Reset big_arm motor encoder
+                bigArmMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER); // Set back to run using encoder for normal operations
+            } else {
+                telemetry.addData("操作", "机器人位姿已设置为 catch pose");
+
+
+
+            }
         }
     }
 
@@ -413,7 +436,7 @@ public class SingleStickWithArm extends LinearOpMode {
                 Right_Hanging_Motor.setPower(1);
                 sleep(200);
                 bigArmMotor.setTargetPosition(targetMotorPosition);
-                double targetServoPosition = 0.84;
+                double targetServoPosition = 0.85;
                 backArmServo.setPosition(targetServoPosition);
 
                 bigArmMotor.setMode(DcMotor.RunMode.RUN_TO_POSITION);
@@ -726,7 +749,7 @@ public class SingleStickWithArm extends LinearOpMode {
         telemetry.addData("后爪", "状态: %s, 位置:%.2f", isClawOpen ? "打开" : "关闭", clawPosition);
         telemetry.addData("框状态", "位置: %.2f", frame.getPosition());
         telemetry.addData("框舵机目标位置:", frameCurrentPosition);
-        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive, D-pad下=滑轨高度切换");
+        telemetry.addData("控制", "左肩=臂架切换, 右摇杆按钮=IMU重置, D-pad左=设置catch pose, D-pad右=记录chamber pose (一次性), D-pad上= Chamber Auto Drive, D-pad下=滑轨高度切换, 触摸板(长按)=手动正向移动大臂并复位后臂");
         telemetry.addData("提示", "按下圆形按键控制前爪, 右摇杆控制前爪自由度,  三角键：前爪横向自由度， 交叉键：小臂, 右肩键：前滑轨伸缩, 右扳机：滑轨下降");
         telemetry.addData("电机 big_arm", "位置: %d, 目标: %d, 忙碌: %b, 模式: %s, Brake: %b, Power: %.2f",
                 bigArmMotor.getCurrentPosition(),

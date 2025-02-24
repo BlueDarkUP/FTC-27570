@@ -1,3 +1,7 @@
+//启发奖 | InspireAward
+//思维奖 | ThinkingAward
+//FTC - 27570
+//1500行代码为你服务
 package org.firstinspires.ftc.teamcode;
 
 import androidx.annotation.NonNull;
@@ -58,6 +62,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private static final double DRIVE_STOP_THRESHOLD = 0.01;
     private static final int SLIDE_HIGH = 2580, SLIDE_MID = 1550, SLIDE_HANG = 930, SLIDE_HOME = 0, SLIDE_HIGH_START = 2000;
     private static final int SLIDE_TOLERANCE = 100;
+    private static  double touchpadpressed = 0;
     private static final double SERVO_POSITION_TOLERANCE = 0.1;
     private static final int ENCODER_POSITION_TOLERANCE = 100;
 
@@ -118,15 +123,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private static final Scalar YELLOW_UPPER = new Scalar(40, 255, 255);
 
     private static class ServoPositions {
-        static final double ARM_FORWARD_DEFAULT = 0.65;
-        static final double CLAW_SHU_DEFAULT = 0.32;
         static final double CLAW_HENG_DEFAULT = 0.54;
-        static final double FORWARD_SLIDE_DEFAULT = 0.9;
-        static final double FORWARD_SLIDE_2_DEFAULT = 0.37;
-        static final double ARM_FORWARD_OVERRIDE = 0.4;
-        static final double FORWARD_SLIDE_OVERRIDE = 0.9;
-        static final double FORWARD_CLAW_DEFAULT = 0.9;
-        static final double FORWARD_CLAW_GRAB = 0.0;
     }
 
     private OpenCvWebcam camera;
@@ -143,7 +140,6 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
     private long lastOptionButtonPressTime = 0;
     private long lastSquareButtonPressTime = 0;
     private long lastCircleButtonPressTime = 0;
-    private long lastTriangleButtonPressTime = 0;
     private long lastCrossButtonPressTime = 0;
     private long lastRightStickPressTime = 0;
     private long frameMoveStartTime = 0;
@@ -206,12 +202,32 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             handlePoseRecord();
             checkReset();
             processAutoStateMachine();
+            handleTouchpadControl();
             updateTelemetry(robotHeading);
             sleep(50);
         }
         stopCamera();
     }
 
+    private void handleTouchpadControl() {
+        if (gamepad1.touchpad) { // Check if touchpad is pressed
+            bigArmMotor.setMode(DcMotor.RunMode.RUN_WITHOUT_ENCODER); // Set to run without encoder for continuous movement
+            bigArmMotor.setPower(0.5); // Move big_arm motor forward with 0.5 power
+            backArmServo.setPosition(0.8);
+        } else {
+            if (touchpadpressed == 0) {
+                bigArmMotor.setPower(0); // Stop big_arm motor when touchpad is released
+                backArmServo.setPosition(0.08); // Set back_arm servo to 0.08
+                bigArmMotor.setMode(DcMotor.RunMode.STOP_AND_RESET_ENCODER); // Reset big_arm motor encoder
+                bigArmMotor.setMode(DcMotor.RunMode.RUN_USING_ENCODER); // Set back to run using encoder for normal operations
+            } else {
+                telemetry.addData("操作", "机器人位姿已设置为 catch pose");
+
+
+
+            }
+        }
+    }
     private void initializeVision() {
         telemetry.addLine("初始化摄像头...");
         telemetry.update();
@@ -529,17 +545,19 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
             claw_heng.setPosition(0.54);
             forward_slide.setPosition(0.9);
             forward_claw.setPosition(0.9);
+            sleep(200);
             ALLIANCE_COLOR = "blue";
             currentAutoState = AutoState.APPROACHING_STEP_2;
         }
 
-        if ((gamepad1.circle || gamepad2.circle) && debounce(lastCircleButtonPressTime)) {
+        if ((gamepad2.circle) && debounce(lastCircleButtonPressTime)) {
             lastCircleButtonPressTime = System.currentTimeMillis();
             arm_forward.setPosition(0.65);
             claw_shu.setPosition(0.32);
             claw_heng.setPosition(0.54);
             forward_slide.setPosition(0.9);
             forward_claw.setPosition(0.9);
+            sleep(200);
             ALLIANCE_COLOR = "red";
             currentAutoState = AutoState.APPROACHING_STEP_2;
         }
@@ -945,7 +963,7 @@ public class SingleStickWithArmWithVision extends LinearOpMode {
                 }
                 sleep(100);
                 arm_forward.setPosition(0.16);
-                sleep(200);
+                sleep(300);
                 forward_claw.setPosition(0);
                 sleep(400);
                 arm_forward.setPosition(0.4);
