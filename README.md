@@ -104,7 +104,7 @@ As we close this chapter, we reflect on our journey:
 
 - **2024-2025 Achievements:**
 🥇 **Design Award - 1st Place | 🥇 Control Award - 1st Place | 🥈 Think Award - 2nd Place**
-Though we narrowly missed qualifying for the MIT Super Tournament, the experience has been invaluable.
+Though we missed qualifying for the MIT Super Tournament (Just one ranking away), the experience has been invaluable.
 
 - **Rebranding:**
 This marks the final update to our repository, now officially renamed **FTC-27570-INTO THE DEEP**.
