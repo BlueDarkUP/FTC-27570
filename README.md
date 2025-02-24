@@ -109,8 +109,8 @@ Though we narrowly missed qualifying for the MIT Super Tournament, the experienc
 - **Rebranding:**
 This marks the final update to our repository, now officially renamed **FTC-27570-INTO THE DEEP**.
 
-**Legacy & Collaboration:**
+- **Legacy & Collaboration:**
 We open-source our code for fellow teams to reference and welcome feedback to refine it further.
 
-**Looking Ahead:**
+- **Looking Ahead:**
 To all teams, we eagerly await your brilliance next season. May we reunite under the spotlight of future stages, celebrating not just victory, but the relentless pursuit of excellence that defines us all.
