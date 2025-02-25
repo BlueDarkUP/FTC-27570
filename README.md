@@ -16,10 +16,12 @@ This repository contains the public FTC code for the **"INTO THE DEEP"** (2024-2
 
 Our code is based on **Android Studio** and utilizes **Roadrunner** for motion planning. To get the best results, we recommend you first get familiar with **Roadrunner**.  
 In this season’s challenge, our robot performs tasks like completing four chambers and put four baskets during the autonomous period, allowing us to score 83 points for chamber and 67 for basket
+We used the simplest network camera: **Logitech C270**, and integrated the advantages of both by using our own **OpenCV** visual pipeline and **Roadrunner** to achieve fully automatic capture
 
 ### 🚀 Key Features:
 - **Android Studio** for development
 - **Roadrunner** for motion control
+- **OpenCV** for fully automatic grasping visual program
 - Optimized for autonomous tasks and performance
 
 ---
@@ -99,7 +101,7 @@ Happy coding, and may the best robot win! 🤖🚀
 
 ---
 
-## 2025.2.24
+## 2025.2.25
 As we close this chapter, we reflect on our journey:
 
 - **2024-2025 Achievements:**
@@ -114,3 +116,6 @@ We open-source our code for fellow teams to reference and welcome feedback to re
 
 - **Looking Ahead:**
 To all teams, we eagerly await your brilliance next season. May we reunite under the spotlight of future stages, celebrating not just victory, but the relentless pursuit of excellence that defines us all.
+
+- **Use our code**
+[For all teams, please refer to the following directory for our code.](https://github.com/BlueDarkUP/FTC-27570-INTO-THE-DEEP/blob/53b710ca1ecb6ad96be2c1a7584dc8fd30b14028/TeamCode/src/main/java/org/firstinspires/ftc/teamcode)
