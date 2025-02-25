@@ -1,4 +1,4 @@
-# FTC Vision-Based Autonomous and Teleop Code - README (Innovation Focus)
+# FTC Vision-Based Autonomous and Teleop Code - README
 
 ## Introduction
 
