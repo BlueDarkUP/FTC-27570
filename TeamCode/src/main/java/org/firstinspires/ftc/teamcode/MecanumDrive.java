@@ -58,37 +58,37 @@ public final class MecanumDrive {
         // TODO: fill in these values based on
         //   see https://ftc-docs.firstinspires.org/en/latest/programming_resources/imu/imu.html?highlight=imu#physical-hub-mounting
         public RevHubOrientationOnRobot.LogoFacingDirection logoFacingDirection =
-                RevHubOrientationOnRobot.LogoFacingDirection.UP;
+                RevHubOrientationOnRobot.LogoFacingDirection.RIGHT;
         public RevHubOrientationOnRobot.UsbFacingDirection usbFacingDirection =
-                RevHubOrientationOnRobot.UsbFacingDirection.RIGHT;
+                RevHubOrientationOnRobot.UsbFacingDirection.BACKWARD;
 
         // drive model parameters
         public double inPerTick = 0.00295836106796834553657273870276;
-        public double lateralInPerTick = 0.002181238103878523;
-        public double trackWidthTicks = 4322.8414309436575;
+        public double lateralInPerTick =  0.0020997270568513067;
+        public double trackWidthTicks = 4452.449543562774;
 
         // feedforward parameters (in tick units)
-        public double kS = 1.4021388085200295;
-        public double kV = 0.0003949341210204912;
-        public double kA = 0.000071;
+        public double kS = 1.10356504327835;
+        public double kV =  0.00038711604656932946;
+        public double kA = 0.00012;
 
         // path profile parameters (in inches)
-        public double maxWheelVel = 60;
-        public double minProfileAccel = -32;
-        public double maxProfileAccel = 35;
+        public double maxWheelVel = 65;
+        public double minProfileAccel = -120;
+        public double maxProfileAccel = 120;
 
         // turn profile parameters (in radians)
         public double maxAngVel = 10*Math.PI; // shared with path
         public double maxAngAccel = 10*Math.PI;
 
         // path controller gains
-        public double axialGain = 30;
-        public double lateralGain = 37;
-        public double headingGain = 20; // shared with turn
+        public double axialGain = 8;
+        public double lateralGain = 4;
+        public double headingGain = 2; // shared with turn
 
-        public double axialVelGain = 2.7;
-        public double lateralVelGain = 3.2;
-        public double headingVelGain = 1.3; // shared with turn
+        public double axialVelGain = 0;
+        public double lateralVelGain = 0.;
+        public double headingVelGain = 0; // shared with turn
     }
 
     public static Params PARAMS = new Params();
@@ -285,8 +285,13 @@ public final class MecanumDrive {
             } else {
                 t = Actions.now() - beginTs;
             }
+            Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
+            targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
 
-            if (t >= timeTrajectory.duration) {
+            PoseVelocity2d robotVelRobot = updatePoseEstimate();
+
+            Pose2d error = txWorldTarget.value().minusExp(pose);
+            if ((t >= timeTrajectory.duration&& error.position.norm()<3&&error.heading.toDouble()<0.01)||t>=timeTrajectory.duration+0.6) {
                 leftFront.setPower(0);
                 leftBack.setPower(0);
                 rightBack.setPower(0);
@@ -295,10 +300,6 @@ public final class MecanumDrive {
                 return false;
             }
 
-            Pose2dDual<Time> txWorldTarget = timeTrajectory.get(t);
-            targetPoseWriter.write(new PoseMessage(txWorldTarget.value()));
-
-            PoseVelocity2d robotVelRobot = updatePoseEstimate();
 
             PoseVelocity2dDual<Time> command = new HolonomicController(
                     PARAMS.axialGain, PARAMS.lateralGain, PARAMS.headingGain,
@@ -329,7 +330,6 @@ public final class MecanumDrive {
             p.put("y", pose.position.y);
             p.put("heading (deg)", Math.toDegrees(pose.heading.toDouble()));
 
-            Pose2d error = txWorldTarget.value().minusExp(pose);
             p.put("xError", error.position.x);
             p.put("yError", error.position.y);
             p.put("headingError (deg)", Math.toDegrees(error.heading.toDouble()));

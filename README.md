@@ -96,3 +96,21 @@ You can reach us through the following social media platforms:
 ---
 
 Happy coding, and may the best robot win! 🤖🚀
+
+---
+
+## 2025.2.24
+As we close this chapter, we reflect on our journey:
+
+- **2024-2025 Achievements:**
+🥇 **Design Award - 1st Place | 🥇 Control Award - 1st Place | 🥈 Think Award - 2nd Place**
+Though we missed qualifying for the MIT Super Tournament (Just one ranking away), the experience has been invaluable.
+
+- **Rebranding:**
+This marks the final update to our repository, now officially renamed **FTC-27570-INTO THE DEEP**.
+
+- **Legacy & Collaboration:**
+We open-source our code for fellow teams to reference and welcome feedback to refine it further.
+
+- **Looking Ahead:**
+To all teams, we eagerly await your brilliance next season. May we reunite under the spotlight of future stages, celebrating not just victory, but the relentless pursuit of excellence that defines us all.
