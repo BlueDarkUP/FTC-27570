@@ -1,5 +1,5 @@
 # FTC Teleop Code for Competition - README (Innovation Focus)
-[Fully automatic grasping visual program](https://github.com/BlueDarkUP/FTC-27570/blob/bc1q3yz7qs5dvm3l249rjqg393qfjddzev37cp84e3/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/WebcamExample.java)
+[Our program for placing samples in high boxes](https://github.com/BlueDarkUP/FTC-27570/blob/bc1q3yz7qs5dvm3l249rjqg393qfjddzev37cp84e3/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/TeleOp/SingleStickWithRR.java)
 
 ## Introduction
 
@@ -76,7 +76,7 @@ Innovation: The `resetIMU()` method provides a critical in-match IMU recalibrati
 
 **a) SlideState Enum for Lift Management:**
 
-```java
+```
 private enum SlideState {IDLE, MOVING_TO_POSITION, MANUAL_DOWN, HANGING_PAUSE}
 private SlideState slideState = SlideState.IDLE;
 ```
@@ -90,7 +90,7 @@ Innovation: The `SlideState` enum and the `slideState` variable implement a stat
 
 **b) State-Driven Lift Movement (handleSlideMovement()):**
 
-```java
+```
 private void handleSlideMovement() {
     // ... (state machine logic using switch/if-else based on slideState) ...
 }
