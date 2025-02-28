@@ -1,5 +1,5 @@
 # FTC Teleop Code for Competition - README (Innovation Focus)
-[Our program for placing samples in high boxes](https://github.com/BlueDarkUP/FTC-27570-INTO-THE-DEEP/blob/bc1q3yz7qs5dvm3l249rjqg393qfjddzev37cp84e3/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/TeleOp/SingleStickWithRR.java)
+[Our program for placing samples in high boxes](https://github.com/BlueDarkUP/FTC-27570-INTO-THE-DEEP/blob/main/TeamCode/src/main/java/org/firstinspires/ftc/teamcode/TeleOp/SingleStickWithRR.java)
 
 ## Introduction
 
