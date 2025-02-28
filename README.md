@@ -118,4 +118,4 @@ We open-source our code for fellow teams to reference and welcome feedback to re
 To all teams, we eagerly await your brilliance next season. May we reunite under the spotlight of future stages, celebrating not just victory, but the relentless pursuit of excellence that defines us all.
 
 - **Use our code**
-[For all teams, please refer to the following directory for our code.](https://github.com/BlueDarkUP/FTC-27570-INTO-THE-DEEP/tree/main/TeamCode/src/main/java/org/firstinspires/ftc/teamcode)
+[For all teams, please refer to the following directory for our code：](https://github.com/BlueDarkUP/FTC-27570-INTO-THE-DEEP/tree/main/TeamCode/src/main/java/org/firstinspires/ftc/teamcode)
